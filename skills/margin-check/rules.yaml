@@ -1,0 +1,68 @@
+# Reguły przygotowania plików do druku – Drukarnia Gutenberg (Graffa)
+# Źródło: https://gutenberg-drukarnia.pl/jak-przygotowac-projekt-do-druku/ (stan z 2026-10-25)
+#
+# Wszystkie wymiary w milimetrach. Format netto = wymiar po przycięciu.
+# Plik ze spadami = netto + 2 × bleed_mm (np. A5 148×210 → 153×215).
+
+defaults:
+  bleed_mm: 2.5            # spad z każdej strony
+  safe_mm: 3.0             # ważne elementy (teksty, logo) min. 3 mm od krawędzi cięcia / bigu
+  frame_mm: 5.0            # ramki min. 5 mm od krawędzi cięcia / bigu
+  min_dpi: 300
+  # Spady nie są wymagane, jeśli żaden element nie dochodzi do krawędzi.
+  bleed_required_only_if_content_at_edge: true
+
+accepted_formats: [pdf, tif, tiff, jpg, jpeg, ai, eps]
+# PNG nie jest wymieniony przez drukarnię – traktujemy jako ostrzeżenie.
+
+products:
+  # --- Wizytówki: 600 dpi ---
+  wizytowka_90x50:
+    name: "Wizytówka 90×50 mm"
+    trim_mm: [90, 50]
+    min_dpi: 600
+  wizytowka_85x55:
+    name: "Wizytówka 85×55 mm"
+    trim_mm: [85, 55]
+    min_dpi: 600
+
+  # --- Ulotki / plakaty jednokartkowe: 300 dpi ---
+  ulotka_a6:
+    name: "Ulotka A6"
+    trim_mm: [105, 148]
+  ulotka_a5:
+    name: "Ulotka A5"
+    trim_mm: [148, 210]
+  ulotka_a4:
+    name: "Ulotka / plakat A4"
+    trim_mm: [210, 297]
+  plakat_a3:
+    name: "Plakat A3"
+    trim_mm: [297, 420]
+  ulotka_dl:
+    name: "Ulotka DL"
+    trim_mm: [99, 210]
+
+  # --- Ulotki składane (rozkładówki) ---
+  # folds_mm: pozycje bigów mierzone od lewej krawędzi formatu netto (oś X rozkładówki)
+  ulotka_a4_skladana_dl:
+    name: "Ulotka A4 składana do DL (2 bigi)"
+    trim_mm: [297, 210]
+    folds_mm: [99, 198]
+  ulotka_a4_skladana_a5:
+    name: "Ulotka A4 składana na pół do A5"
+    trim_mm: [297, 210]
+    folds_mm: [148.5]
+    note: "Format wyprowadzony – nie ma go wprost w instrukcji drukarni."
+
+  # --- Zaproszenia ---
+  zaproszenie_120x170:
+    name: "Zaproszenie jednokartkowe 12×17 cm"
+    trim_mm: [120, 170]
+  zaproszenie_skladane_280x140:
+    name: "Zaproszenie składane 28×14 → 14×14 cm"
+    trim_mm: [280, 140]
+    folds_mm: [140]
+
+# TODO (do potwierdzenia z drukarnią): druk wielkoformatowy (plakaty > A3, banery,
+# płótna, fototapety) – instrukcja nie podaje dla nich spadów ani DPI.

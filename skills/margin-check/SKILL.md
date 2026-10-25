@@ -81,5 +81,5 @@ lub poproś o JPG w pełnej rozdzielczości i przejdź do kroku 2a.
 - Analiza zakłada białe tło papieru; na papierach kolorowych i przy kolorach
   specjalnych (biały/złoty/srebrny) wyniki traktuj orientacyjnie.
 - Duże formaty (banery, płótna, plakaty > A3) nie mają jeszcze reguł – zapytaj drukarnię.
-- PDF obsługuje osobny moduł (źródło 1). Silnik `scripts/margins.py` można wywołać
-  na zrasteryzowanej stronie PDF – patrz `analyze_raster()` i `layout_from_known()`.
+- PDF sprawdza skill `pdf-check` (`../pdf-check/scripts/check_pdf.py`) – ten sam silnik
+  `scripts/margins.py` na zrasteryzowanej stronie.

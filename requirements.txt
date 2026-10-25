@@ -1,4 +1,6 @@
 Pillow>=10.0
 numpy>=1.24
 PyYAML>=6.0
+pypdf>=4.0
+pypdfium2>=4.30
 pytest>=7.0

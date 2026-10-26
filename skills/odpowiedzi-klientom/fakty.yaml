@@ -1,0 +1,98 @@
+# Fakty o firmie – jedyne źródło danych, których asystent może użyć poza szablonami.
+# Źródła: TEKSTY_MAILI.docx (szablony firmy) i strona gutenberg-drukarnia.pl (25.10.2026).
+# Zmieniasz cenę / godziny? Zmień TUTAJ i w szablonie, którego dotyczy (test to wychwyci tylko częściowo).
+
+firma:
+  nazwa: Drukarnia Gutenberg
+  podmiot: Graffa Paweł Kisielewicz
+  adres: ul. Miejska 14, 51-352 Wrocław
+  dojazd: Psie Pole, Zgorzelisko, wylot na Wilczyce
+  godziny_biura: pon.-pt. 7.00-15.00, sobota-niedziela nieczynne
+  odbior_po_godzinach: >-
+    możliwy po wcześniejszym kontakcie telefonicznym pod nr 660 361 988;
+    po godzinach wyłącznie płatność gotówką
+  telefon_biuro: 730 885 333
+  telefon_po_godzinach: 660 361 988
+  email: biuro@gutenberg-drukarnia.pl
+  email_techniczny_canva: >-
+    drukarnia.gutenberg.wroclaw@gmail.com – tylko do udostępniania projektów Canva,
+    wiadomości na ten adres nie są czytane
+  nrb: 89 1090 2402 0000 0001 4922 1562   # wyłącznie w szablonie dane-do-przelewu
+  www: https://gutenberg-drukarnia.pl
+  instagram: drukarniagutenberg
+  opinie_google: https://g.page/r/CQYxK9s1kZ5NEAI/review
+  profil: drukarnia cyfrowa, nakłady od 1 szt.; wielki format na ploterach Canon i Epson
+
+podpis: |-
+  Pozdrawiam serdecznie,
+  Beata Kisielewicz
+  730 885 333
+
+platnosci:
+  przy_odbiorze: gotówka lub karta/blik
+  z_gory_gdy: zamówienie powyżej 1000 zł lub wysyłka kurierem
+  proforma: możliwa – klient podaje dane do faktury
+  faktury_vat: tak
+
+wysylka:
+  przewoznik: kurier InPost
+  standard: 20 zł; powyżej 500 zł gratis
+  obrazy_dluzszy_bok_do_110cm: 25 zł (pakowanie + wysyłka)
+  obrazy_dluzszy_bok_od_120cm: 50 zł
+  zagranica: wycena indywidualna
+
+terminy:
+  typowe_zamowienie: 3-4 dni robocze
+  standard_wg_formularza: ok. 2 dni robocze; ekspres na ten sam dzień
+  obrazy_na_plotnie: 1 dzień roboczy
+  zaproszenia: ok. 2 dni robocze (+ projekt ok. 1-2 dni)
+
+cennik:   # wyłącznie ceny występujące w szablonach – innych NIE podajemy
+  projekt_graficzny: 90 zł/h brutto (wizytówka zwykle ok. 1 h)
+  projekt_zaproszenia_slubnego: ok. 40 zł
+  projekt_zaproszenia_urodzinowego: 30 zł
+  personalizacja_zaproszen_slubnych: 1 zł/szt.
+  personalizacja_zaproszen_urodzinowych: 0,40 zł/szt.
+  pakiet_slubny_konsultacje_45min: 119 zł
+  naklejki_wycinane: 119 zł/m2 brutto, minimum 1 m2
+  ploter_wspolpraca: 93 zł/m2 brutto, minimum 0,5 m2 (na start 0,25 m2 = 46,50 zł przez 3 mies.)
+  wyostrzenie_zdjecia: 20 zł
+  zaproszenia_urodzinowe_50szt_A5_na_A6: satynowy 300g 104 zł; kremowy płótno 120 zł
+  koperty_A6_biale: 0,20 zł/szt.
+  rabat_fotograf_lub_wspolpraca: 5% od cen na stronie
+  pozostale: cennik na stronie https://gutenberg-drukarnia.pl/nasz-cennik-2026/ albo wycena pracownika
+
+linki:
+  sklep_obrazy: https://gutenberg-drukarnia.pl/sklep/obraz-na-plotnie/fotoobraz-z-wlasnego-zdjecia/
+  sklep_fototapety: https://gutenberg-drukarnia.pl/sklep/fototapety/fototapeta-z-wlasnego-zdjecia/
+  obrazy_informacje: https://gutenberg-drukarnia.pl/oferta/druk-wielkoformatowy/obrazy-na-plotnie/
+  przygotowanie_plikow: https://gutenberg-drukarnia.pl/jak-przygotowac-projekt-do-druku/
+  papiery_ozdobne: https://gutenberg-drukarnia.pl/slubne/papiery-ozdobne/
+  szablony_do_pobrania: https://gutenberg-drukarnia.pl/szablony/
+  cennik: https://gutenberg-drukarnia.pl/nasz-cennik-2026/
+
+# Rozbieżności znalezione w szablonach – do wyjaśnienia z drukarnią.
+# Do tego czasu asystent stosuje regułę z pola „stosuj”.
+sprzecznosci:
+  - temat: małe zamówienia
+    opis: >-
+      Szablon minima-logistyczne odmawia małych nakładów, a nie-dla-nas-duzy-naklad i
+      hotele-wspolpraca mówią „od 1 szt.”.
+    stosuj: nigdy nie odmawiaj sam; minima-logistyczne tylko na polecenie pracownika.
+  - temat: koszt wysyłki
+    opis: 20 zł (płatność) vs 25 zł / 50 zł (obrazy).
+    stosuj: 20 zł dla zwykłych wydruków, 25/50 zł dla obrazów wg dłuższego boku.
+  - temat: czas realizacji
+    opis: 3-4 dni (płatność) vs ok. 2 dni (formularz zlecenia, zaproszenia) vs 1 dzień (obrazy).
+    stosuj: termin z szablonu dotyczącego danego produktu; przy pilnych terminach – do pracownika.
+  - temat: personalizacja zaproszeń
+    opis: 1 zł/szt. (ślubne) vs 0,40 zł/szt. (urodzinowe).
+    stosuj: cena z szablonu właściwego dla rodzaju zaproszeń.
+  - temat: marginesy zawieszek
+    opis: 1,5 mm spadu i 2 mm do tekstu vs 2,5 mm spadu i 3 mm do tekstu.
+    stosuj: wariant B (2,5/3 mm) – zgodny z ogólną instrukcją drukarni.
+  - temat: linki
+    opis: >-
+      Szablony zawierały /pomoc/jak-przygotowac-projekt-do-druku/ i
+      /druk-wielkoformatowy/zdjecia-na-plotnie/ – zastąpione adresami z aktualnego menu strony.
+    stosuj: adresy z sekcji linki.

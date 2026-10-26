@@ -11,6 +11,40 @@ klientów są poprawnie przygotowane do druku.
 | 2 | Pliki graficzne: JPG, PNG, TIFF | `skills/margin-check/scripts/check_image.py` | ✅ v0.1 |
 | 3 | Linki do Canvy | `skills/margin-check/scripts/canva_link.py` | ✅ v0.1 (weryfikacja linku + lista kontrolna) |
 
+## Skille
+
+| Skill | Co robi | Status |
+|---|---|---|
+| `skills/margin-check` | sprawdza spady, marginesy, ramki i DPI w plikach do druku | ✅ v0.1 |
+| `skills/odpowiedzi-klientom` | szkice odpowiedzi na maile klientów z 32 firmowych szablonów | ✅ demo |
+
+## Asystent odpowiedzi na maile (`odpowiedzi-klientom`)
+
+Claude czyta mail klienta, dobiera firmowy szablon (z `TEKSTY_MAILI.docx`), uzupełnia go i oddaje
+**szkic do akceptacji pracownika**: z listą pól do uzupełnienia, uwagami i flagą „wymaga człowieka”.
+
+```
+skills/odpowiedzi-klientom/
+├── SKILL.md          # zasady: dobór szablonu, styl, czego nie wolno (ceny, odmowy, reklamacje)
+├── fakty.yaml        # adres, godziny, ceny, terminy, linki + sprzeczności między szablonami
+└── szablony/*.md     # 32 szablony; przykładowe kwoty zamienione na {{zmienne}}
+evals/odpowiedzi-klientom.yaml   # 20 maili testowych z oczekiwanym wynikiem
+scripts/odpowiedzi.py            # wspólna logika: prompt + automatyczna ocena
+scripts/zbuduj.py                # indeks w SKILL.md, demo/demo.html, dist/odpowiedzi-klientom.zip
+scripts/uruchom_evale.py         # testy na prawdziwym modelu (wymaga ANTHROPIC_API_KEY)
+demo/szablon.html → demo.html    # strona demo (artefakt w Claude, działa bez klucza API)
+```
+
+Trzy poziomy sprawdzania:
+
+1. **Testy offline** (`pytest`): spójność szablonów, zmiennych, linków i przypadków testowych.
+   Sprawdzają też, czy ocena wyłapuje wymyślone kwoty, numer konta i niewypełnione pola.
+2. **Demo** (artefakt w Claude): skrzynka z 20 przykładowymi mailami i polem na własny,
+   wywołania Claude'a na żywo, zakładka „Testy” z automatyczną oceną wszystkich przypadków.
+3. **Evale przez API**: `python scripts/uruchom_evale.py` zapisuje raport do `evals/wyniki.md`.
+
+Po każdej zmianie szablonów lub faktów: `python scripts/zbuduj.py` i `pytest`.
+
 ## Struktura
 
 ```

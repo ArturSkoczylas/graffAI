@@ -11,5 +11,6 @@ out/
 *.zip
 # pliki klientów nie trafiają do repo
 klienci/
+source-files/
 dist/
 evals/wyniki.md

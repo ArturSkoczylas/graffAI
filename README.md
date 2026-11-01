@@ -57,7 +57,7 @@ graffAI/
 │       ├── check_image.py      # CLI: pliki graficzne
 │       └── canva_link.py       # CLI: linki Canva
 ├── tests/                      # pytest + generator próbek
-├── samples/                    # przykładowe pliki z typowymi błędami
+├── samples/                    # pliki do testów – NIE w repo (dane klientów); syntetyczne: python tests/sample_factory.py
 └── docs/zasady-drukarni.md     # wymagania drukarni (źródło reguł)
 ```
 
@@ -71,6 +71,7 @@ pip install -r requirements.txt
 python skills/margin-check/scripts/check_image.py --list-products
 
 # sprawdzenie pliku + podgląd z naniesionymi liniami
+python tests/sample_factory.py   # generuje przykładowe pliki w samples/
 python skills/margin-check/scripts/check_image.py samples/a5_tekst_przy_krawedzi.jpg \
     --product ulotka_a5 --preview out/
 

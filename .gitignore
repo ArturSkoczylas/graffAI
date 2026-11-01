@@ -9,8 +9,9 @@ venv/
 out/
 *_podglad.png
 *.zip
-# pliki klientów nie trafiają do repo
+# pliki klientów nie trafiają do repo (repo jest publiczne!)
 klienci/
+samples/
 source-files/
 dist/
 evals/wyniki.md

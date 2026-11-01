@@ -304,19 +304,33 @@ def test_element_in_safe_zone(tmp_path, distance):
     found = [f for f in p.findings if f.code == "ELEMENT_IN_SAFE_ZONE"]
     assert [f.side for f in found] == ["left"]
     assert p.status == "OSTRZEŻENIA"
-    # Silnik podaje odległość dokładnie dopiero od ok. 1,5 mm – bliżej zwraca dolną granicę pasa (0,4 mm).
-    if distance >= 1.5:
-        assert found[0].distance_mm == pytest.approx(distance, abs=0.3)
-    else:
-        assert found[0].distance_mm <= 1.5
+    # Odległość liczona od pierwszego wiersza z krawędzią liter (dokładność ok. 1 piksela).
+    assert found[0].distance_mm == pytest.approx(distance, abs=0.3)
 
 
-@pytest.mark.xfail(strict=True, reason="silnik margins.py: tekst 2,5–3 mm od cięcia nie jest wykrywany "
-                                       "(w pasie 0,4–3 mm jest tylko brzeg liter)")
-def test_element_just_inside_safe_zone_known_gap(tmp_path):
-    """Wymóg to 3 mm, więc tekst 2,8 mm od cięcia powinien dać ostrzeżenie."""
-    p = check_one(a5_pdf(tmp_path, background() + text(2.5 + 2.8, 100)))
-    assert "ELEMENT_IN_SAFE_ZONE" in p.codes
+@pytest.mark.parametrize("side", ["left", "right", "top", "bottom"])
+def test_element_just_inside_safe_zone(tmp_path, side):
+    """Wymóg to 3 mm, więc tekst 2,7 mm od cięcia daje ostrzeżenie – z każdej strony.
+    (Pozycja to brzeg pola znaku; sam rysunek cyfry zaczyna się ok. 0,1–0,15 mm dalej,
+    więc przy 2,8 mm tekst z prawej leży faktycznie ~2,95 mm od cięcia, na granicy pomiaru.)"""
+    d = 2.7
+    x, y = {"left": (2.5 + d, 100), "right": (150.5 - d - TEXT_W, 100),
+            "top": (60, 212.5 - d - TEXT_H), "bottom": (60, 2.5 + d)}[side]
+    p = check_one(a5_pdf(tmp_path, background() + text(x, y)))
+    found = [f for f in p.findings if f.code == "ELEMENT_IN_SAFE_ZONE"]
+    assert [f.side for f in found] == [side]
+    assert found[0].distance_mm == pytest.approx(d, abs=0.3)
+
+
+@pytest.mark.parametrize("side", ["left", "right", "top", "bottom"])
+@pytest.mark.parametrize("distance", [0.8, 1.5, 2.2])
+def test_element_distance_each_side(tmp_path, side, distance):
+    """Podawana odległość zgadza się z rzeczywistą z każdej strony (bez zaniżania do 0,4 mm)."""
+    x, y = {"left": (2.5 + distance, 100), "right": (150.5 - distance - TEXT_W, 100),
+            "top": (60, 212.5 - distance - TEXT_H), "bottom": (60, 2.5 + distance)}[side]
+    p = check_one(a5_pdf(tmp_path, background() + text(x, y)))
+    found = [f for f in p.findings if f.code == "ELEMENT_IN_SAFE_ZONE"]
+    assert found and found[0].distance_mm == pytest.approx(distance, abs=0.3)
 
 
 @pytest.mark.parametrize("distance", [3.5, 4.0, 5.0, 10.0])

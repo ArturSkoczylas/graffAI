@@ -30,6 +30,9 @@ EDGE_T = 35                # różnica sąsiednich pikseli uznawana za krawędź
 LINE_T = 25                # j.w. dla wykrywania cienkich linii (ramek)
 LINE_FRACTION = 0.55       # część długości boku, którą musi pokrywać linia ramki
 ELEMENT_DENSITY = 0.012    # gęstość krawędzi w pasie, od której uznajemy, że jest tam element
+MIN_ELEMENT_PX = 6         # minimum pikseli krawędzi w strefie bezpieczeństwa (odcinek 10 mm)
+ROW_MIN_PX = 2             # wiersz z co najmniej tyloma pikselami krawędzi = początek elementu
+SAFE_LOOKAHEAD_MM = 2.0    # o ile poza strefę bezpieczeństwa patrzymy, oceniając gęstość elementu
 
 SEVERITY_ORDER = {"BŁĄD": 0, "OSTRZEŻENIE": 1, "SPRAWDŹ": 2, "INFO": 3}
 SIDE_NAMES = {"top": "Górna", "bottom": "Dolna", "left": "Lewa", "right": "Prawa"}
@@ -316,6 +319,13 @@ def analyze_raster(rgb: np.ndarray, layout: Layout, product: Product) -> list:
     gx[:, 1:] = np.abs(np.diff(gray, axis=1))
     gy[1:, :] = np.abs(np.diff(gray, axis=0))
     edge = (gx > EDGE_T) | (gy > EDGE_T)
+    # Ta sama krawędź przypisana pikselowi po drugiej stronie przejścia. Różnica sąsiednich
+    # pikseli trafia do piksela o większym indeksie – przy górnym/lewym boku to piksel elementu,
+    # przy dolnym/prawym piksel tła, co zaniżało odległość. Dla dolnego i prawego boku
+    # używamy więc maski przesuniętej o 1 piksel do środka.
+    edge_back = np.zeros_like(edge)
+    edge_back[:-1, :] |= gy[1:, :] > EDGE_T
+    edge_back[:, :-1] |= gx[:, 1:] > EDGE_T
     hline = gy > LINE_T        # krawędzie linii poziomych
     vline = gx > LINE_T        # krawędzie linii pionowych
     frame_mask = np.zeros((H, W), dtype=bool)
@@ -328,7 +338,8 @@ def analyze_raster(rgb: np.ndarray, layout: Layout, product: Product) -> list:
         ppm_al = ppm_x if horiz else ppm_y
         a0 = int(round(bx if horiz else by))
         a1 = int(round((W - bx) if horiz else (H - by)))
-        sides.append(_Side(name, _views(nw, name), _views(edge, name),
+        sides.append(_Side(name, _views(nw, name),
+                           _views(edge if name in ("top", "left") else edge_back, name),
                            _views(hline if horiz else vline, name),
                            _views(frame_mask, name), off, ppm, ppm_al, a0, a1))
 
@@ -429,17 +440,25 @@ def analyze_raster(rgb: np.ndarray, layout: Layout, product: Product) -> list:
         warn, check = [], []
         edge_bad = {(s, e) for s, e, _ in edge_content_sides.get(sd.name, [])}
         for s, e in _segments(sd.a0, sd.a1, sd.ppm_along):
-            band_e = _band(sd, sd.edge, 0.4, product.safe_mm, s, e)
-            band_f = _band(sd, sd.fmask, 0.4, product.safe_mm, s, e)
-            em = band_e & ~band_f
-            dens = em.mean() if em.size else 0.0
+            # pas 0,4 mm … strefa bezpieczeństwa
+            em = (_band(sd, sd.edge, 0.4, product.safe_mm, s, e)
+                  & ~_band(sd, sd.fmask, 0.4, product.safe_mm, s, e))
+            if not em.size or em.sum() < MIN_ELEMENT_PX:
+                continue
+            # okno sięgające za strefę: element, który ledwo w nią wchodzi (np. tekst 2,8 mm
+            # od cięcia), ma w samej strefie tylko brzeg liter – gęstość liczymy szerzej
+            wide = (_band(sd, sd.edge, 0.4, product.safe_mm + SAFE_LOOKAHEAD_MM, s, e)
+                    & ~_band(sd, sd.fmask, 0.4, product.safe_mm + SAFE_LOOKAHEAD_MM, s, e))
+            dens = max(em.mean(), wide.mean() if wide.size else 0.0)
             if dens < ELEMENT_DENSITY:
                 continue
             # najbliższy wiersz z treścią -> odległość od linii cięcia
-            prof = em.mean(axis=1)
-            idx = np.nonzero(prof > 0.04)[0]
+            counts = em.sum(axis=1)
+            idx = np.nonzero(counts >= min(ROW_MIN_PX, counts.max()))[0]
             r0 = int(round(sd.off + 0.4 * sd.ppm))
-            dist = ((idx[0] + r0) - sd.off) / sd.ppm if idx.size else 0.4
+            dist = ((idx[0] + r0) - sd.off) / sd.ppm
+            if dist >= product.safe_mm - 0.05:
+                continue
             if layout.has_bleed:
                 ref = (_band(sd, sd.edge, -bl + 0.3, -0.3, s, e) &
                        ~_band(sd, sd.fmask, -bl + 0.3, -0.3, s, e)).mean()

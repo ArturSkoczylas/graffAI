@@ -75,8 +75,9 @@ Kody wyjścia: 0 OK, 1 ostrzeżenia lub do weryfikacji, 2 błędy, 3 nie da się
 
 ## Ograniczenia – uwzględnij w ocenie
 
-- **Tekst 2,5–3 mm od cięcia może nie zostać wykryty**, a odległość poniżej ok. 1,5 mm
-  jest podawana jako ~0,4 mm. Przy elementach blisko krawędzi oceń podgląd sam.
+- Odległość elementu od cięcia jest mierzona z dokładnością ok. 1 piksela analizy
+  (przy domyślnych 200 dpi ok. 0,15 mm). Element tuż przy granicy 3 mm (2,9–3,0 mm)
+  może przejść bez ostrzeżenia – przy takich miejscach oceń podgląd sam.
 - Rozdzielczości zdjęć w PDF skrypt jeszcze nie sprawdza – `render_dpi` to rozdzielczość
   analizy, nie zdjęć. Przy wizytówkach (600 dpi) i zdjęciach zapytaj o źródło, jeśli podgląd
   wygląda nieostro.

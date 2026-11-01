@@ -33,6 +33,9 @@ ELEMENT_DENSITY = 0.012    # gęstość krawędzi w pasie, od której uznajemy, 
 MIN_ELEMENT_PX = 6         # minimum pikseli krawędzi w strefie bezpieczeństwa (odcinek 10 mm)
 ROW_MIN_PX = 2             # wiersz z co najmniej tyloma pikselami krawędzi = początek elementu
 SAFE_LOOKAHEAD_MM = 2.0    # o ile poza strefę bezpieczeństwa patrzymy, oceniając gęstość elementu
+PERPENDICULAR_FRACTION = 0.9  # kolumna krawędzi przez ≥90% głębokości pasa = granica tła, nie element
+NEAR_FORMAT_MM = 1.5       # format różniący się o tyle (każdy bok) = „prawie pasuje”, sprawdzamy dalej
+CANVA_CARD_MM = (88.9, 50.8)  # domyślna wizytówka w Canvie: 3,5×2 cala
 
 SEVERITY_ORDER = {"BŁĄD": 0, "OSTRZEŻENIE": 1, "SPRAWDŹ": 2, "INFO": 3}
 SIDE_NAMES = {"top": "Górna", "bottom": "Dolna", "left": "Lewa", "right": "Prawa"}
@@ -105,6 +108,59 @@ def get_product(rules: dict, product_id: Optional[str] = None,
     return Product(pid, name, float(tw), float(th), float(d["bleed_mm"]),
                    float(d["safe_mm"]), float(d["frame_mm"]), int(dpi), folds_x=fx)
 
+
+
+def near_product(product: Product, w: float, h: float,
+                 tol: float = NEAR_FORMAT_MM) -> Optional[Product]:
+    """Produkt o formacie netto w×h, jeśli różni się od `product` najwyżej o `tol` mm na bok.
+
+    Pozwala sprawdzić marginesy pliku, który „prawie pasuje” (np. wizytówka z Canvy 88,9×50,8
+    zamiast 90×50). Bigi przeskalowane proporcjonalnie. None, gdy różnica jest większa.
+    """
+    if abs(w - product.trim_w) > tol or abs(h - product.trim_h) > tol:
+        return None
+    sx, sy = w / product.trim_w, h / product.trim_h
+    return Product(product.id, product.name, float(w), float(h), product.bleed_mm,
+                   product.safe_mm, product.frame_mm, product.min_dpi,
+                   folds_x=[f * sx for f in product.folds_x],
+                   folds_y=[f * sy for f in product.folds_y])
+
+
+def format_close_finding(product: Product, w: float, h: float) -> "Finding":
+    diff = max(abs(w - product.trim_w), abs(h - product.trim_h))
+    canva = (abs(w - CANVA_CARD_MM[0]) < 0.3 and abs(h - CANVA_CARD_MM[1]) < 0.3) or \
+            (abs(h - CANVA_CARD_MM[0]) < 0.3 and abs(w - CANVA_CARD_MM[1]) < 0.3)
+    return Finding(
+        "SPRAWDŹ", "FORMAT_CLOSE",
+        f"Format netto {fmt(round(w, 1))}×{fmt(round(h, 1))} mm zamiast "
+        f"{fmt(product.trim_w)}×{fmt(product.trim_h)} mm (różnica do {fmt(round(diff, 1))} mm"
+        + (" – typowy rozmiar wizytówki z Canvy, 3,5×2 cala" if canva else "")
+        + "). Marginesy sprawdzono dla formatu z pliku. Do decyzji: druk w tym formacie "
+          "albo prośba o plik w formacie produktu.")
+
+
+def panel_product(product: Product) -> Optional[Product]:
+    """Pojedynczy panel produktu składanego (np. 140×140 dla zaproszenia 280×140 → 140×140).
+
+    Panele przyjmujemy jako równe (podział formatu netto przez liczbę paneli). None dla
+    produktu bez bigów.
+    """
+    if not product.folds_x and not product.folds_y:
+        return None
+    pw = product.trim_w / (len(product.folds_x) + 1)
+    ph = product.trim_h / (len(product.folds_y) + 1)
+    return Product(product.id + "_panel", product.name + " – jeden panel", pw, ph,
+                   product.bleed_mm, product.safe_mm, product.frame_mm, product.min_dpi)
+
+
+def folded_as_pages_finding(product: Product, panel: Product) -> "Finding":
+    b = product.bleed_mm
+    return Finding(
+        "BŁĄD", "FOLDED_AS_PAGES",
+        f"Plik ma format jednego panelu ({fmt(round(panel.trim_w, 1))}×{fmt(round(panel.trim_h, 1))} mm), "
+        f"a ten produkt ({product.name}) trzeba przygotować jako rozkładówki: stronę zewnętrzną i wewnętrzną, "
+        f"każdą w formacie {fmt(product.trim_w + 2 * b)}×{fmt(product.trim_h + 2 * b)} mm ze spadami "
+        f"(netto {fmt(product.trim_w)}×{fmt(product.trim_h)} mm). Pozostałe uwagi dotyczą tego panelu.")
 
 # --------------------------------------------------------------------------- #
 # Geometria pliku: czy ma spady i jaka jest rzeczywista rozdzielczość
@@ -443,12 +499,22 @@ def analyze_raster(rgb: np.ndarray, layout: Layout, product: Product) -> list:
             # pas 0,4 mm … strefa bezpieczeństwa
             em = (_band(sd, sd.edge, 0.4, product.safe_mm, s, e)
                   & ~_band(sd, sd.fmask, 0.4, product.safe_mm, s, e))
-            if not em.size or em.sum() < MIN_ELEMENT_PX:
+            if not em.size:
+                continue
+            # Granica tła prostopadła do krawędzi (np. dwa kolorowe pola stykające się
+            # przy cięciu) to linia przez całą głębokość pasa – to nie jest element.
+            perp = em.mean(axis=0) >= PERPENDICULAR_FRACTION
+            if perp.any():
+                perp = perp | np.roll(perp, 1) | np.roll(perp, -1)
+                em = em & ~perp[None, :]
+            if em.sum() < MIN_ELEMENT_PX:
                 continue
             # okno sięgające za strefę: element, który ledwo w nią wchodzi (np. tekst 2,8 mm
             # od cięcia), ma w samej strefie tylko brzeg liter – gęstość liczymy szerzej
             wide = (_band(sd, sd.edge, 0.4, product.safe_mm + SAFE_LOOKAHEAD_MM, s, e)
                     & ~_band(sd, sd.fmask, 0.4, product.safe_mm + SAFE_LOOKAHEAD_MM, s, e))
+            if wide.size and perp.any():
+                wide = wide & ~perp[None, :]
             dens = max(em.mean(), wide.mean() if wide.size else 0.0)
             if dens < ELEMENT_DENSITY:
                 continue

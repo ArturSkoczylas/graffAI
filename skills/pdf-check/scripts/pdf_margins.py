@@ -122,9 +122,33 @@ def _render(pdf_page, g, bleed_mm: float, inside_page: bool, dpi: float, media_o
     return bitmap.to_pil().convert("RGB")
 
 
-def _check_page(pdf_page, g, product: M.Product, dpi: float, preview_dir) -> PageMargins:
+def _fallback_product(product: M.Product, g):
+    """Strona nie pasuje do produktu: może to jeden panel produktu składanego albo format
+    „prawie” zgodny (wizytówka z Canvy 88,9×50,8). Zwraca (produkt, uwaga) albo (None, None)."""
+    panel = M.panel_product(product)
+    if panel is not None:
+        p = _oriented(panel, g.trim_size)
+        if _page_bleed(g, p)[0] is not None:
+            return p, M.folded_as_pages_finding(product, panel)
+    w, h = g.trim_size
+    for cand in (product, product.rotated()):
+        sizes = [(w, h)] if g.trim_explicit else [(w, h), (w - 2 * cand.bleed_mm, h - 2 * cand.bleed_mm)]
+        for sw, sh in sizes:
+            near = M.near_product(cand, sw, sh)
+            if near is not None and _page_bleed(g, near)[0] is not None:
+                return near, M.format_close_finding(cand, sw, sh)
+    return None, None
+
+
+def _check_page(pdf_page, g, product: M.Product, dpi: float, preview_dir, stem: str = "") -> PageMargins:
     prod = _oriented(product, g.trim_size)
     bleed, findings = _page_bleed(g, prod)
+    if bleed is None:
+        alt, note = _fallback_product(product, g)
+        if alt is not None:
+            prod = alt
+            bleed, findings = _page_bleed(g, prod)
+            findings.insert(0, note)
     if bleed is None:
         w, h = g.trim_size
         findings.append(M.Finding(
@@ -151,7 +175,7 @@ def _check_page(pdf_page, g, product: M.Product, dpi: float, preview_dir) -> Pag
     preview = None
     if preview_dir is not None:
         from check_image import make_preview    # Pillow-owe rysowanie podglądu z margin-check
-        preview = Path(preview_dir) / f"strona_{g.page}_podglad.png"
+        preview = Path(preview_dir) / f"{stem + '_' if stem else ''}strona_{g.page}_podglad.png"
         preview.parent.mkdir(parents=True, exist_ok=True)
         make_preview(image, layout, prod, analysis, preview)
 
@@ -172,7 +196,8 @@ def check_margins(path, product, render_dpi: float = DEFAULT_RENDER_DPI,
     except pdfium.PdfiumError as e:
         raise InvalidPdfError(f"pdfium nie otworzył {Path(path).name}: {e}") from e
     try:
-        return [_check_page(doc[g.page - 1], g, product, dpi, preview_dir) for g in geometry]
+        return [_check_page(doc[g.page - 1], g, product, dpi, preview_dir, Path(path).stem)
+                for g in geometry]
     finally:
         doc.close()
 

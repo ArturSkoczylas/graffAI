@@ -49,6 +49,17 @@ Skrypt:
 
 Kody wyjścia: 0 OK, 1 ostrzeżenia lub do weryfikacji, 2 błędy, 3 nie da się sprawdzić.
 
+Dwa kody wymagają komentarza:
+- `FORMAT_CLOSE` – format różni się od produktu najwyżej o 1,5 mm (typowo wizytówka z Canvy
+  88,9×50,8 mm zamiast 90×50). Marginesy są sprawdzone dla formatu z pliku; o druku decyduje
+  drukarnia. Wykrywane tylko, gdy plik ma metadane DPI (inaczej nie znamy wymiaru w mm).
+- `FOLDED_AS_PAGES` – produkt składany (np. zaproszenie 280×140) przysłany jako osobne strony
+  jednego panelu. Klient musi połączyć je w rozkładówki; pozostałe uwagi dotyczą panelu.
+
+Skrypt nie rozpozna **wizualizacji** (np. przód i tył wizytówki na jednym obrazku z białym tłem) –
+zobaczy tylko niezgodny format. Obejrzyj taki plik i napisz klientowi, że potrzebny jest
+plik do druku, a nie podgląd.
+
 ## Krok 2b. Link do Canvy
 
 Nie otworzysz projektu Canva z linku: wymaga logowania. Uruchom:

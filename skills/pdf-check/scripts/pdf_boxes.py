@@ -154,7 +154,7 @@ def page_geometry(page, number: int, threshold_mm: float) -> PageGeometry:
     )
 
 
-def read_boxes(path, marks_threshold_mm: float = 3.0) -> list:
+def read_boxes(path, marks_threshold_mm: float = 2.0) -> list:
     """Geometria wszystkich stron PDF. Zwraca list[PageGeometry]."""
     threshold = _validate_threshold(marks_threshold_mm)
     reader = open_pdf(path)

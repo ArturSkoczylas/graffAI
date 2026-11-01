@@ -190,6 +190,28 @@ def make_preview(rgb: Image.Image, layout: M.Layout, product: M.Product,
     canvas.save(out)
 
 
+def fallback_layout(px_w: int, px_h: int, product: M.Product, mdpi) -> tuple:
+    """Gdy plik nie pasuje do produktu: pojedynczy panel produktu składanego albo format
+    „prawie” zgodny (np. wizytówka z Canvy). Zwraca (layout | None, produkt, uwagi)."""
+    panel = M.panel_product(product)
+    if panel is not None:
+        lay, p = M.detect_layout(px_w, px_h, panel, mdpi)
+        if lay is not None:
+            return lay, p, [M.folded_as_pages_finding(product, panel)]
+    # wymiary w mm znamy tylko z metadanych DPI
+    if mdpi and mdpi[0] and mdpi[1] and mdpi[0] > 1 and mdpi[1] > 1:
+        w = px_w / mdpi[0] * M.MM_PER_INCH
+        h = px_h / mdpi[1] * M.MM_PER_INCH
+        for cand in (product, product.rotated()):
+            for bl in (product.bleed_mm, 0.0):
+                near = M.near_product(cand, w - 2 * bl, h - 2 * bl)
+                if near is not None:
+                    lay, p = M.detect_layout(px_w, px_h, near, mdpi)
+                    if lay is not None:
+                        return lay, p, [M.format_close_finding(cand, near.trim_w, near.trim_h)]
+    return None, product, []
+
+
 # --------------------------------------------------------------------------- #
 # Sprawdzenie pliku
 # --------------------------------------------------------------------------- #
@@ -232,6 +254,9 @@ def check_file(path: Path, product: M.Product, rules: dict, preview_dir: Path | 
         mdpi = meta_dpi(page) or meta_dpi(src)
         layout, prod = M.detect_layout(px_w, px_h, product, mdpi)
         pinfo = {"page": i, "px": [px_w, px_h], "meta_dpi": mdpi}
+        if layout is None:
+            layout, prod, extra = fallback_layout(px_w, px_h, product, mdpi)
+            page_findings += extra
         if layout is None:
             sugg = M.suggest_products(rules, px_w, px_h)
             msg = (f"Proporcje pliku ({px_w}×{px_h} px) nie pasują do produktu "

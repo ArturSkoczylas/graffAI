@@ -122,7 +122,7 @@ def test_check_margins_accepts_product_object_and_str_path(good_a5):
 
 def test_check_margins_preview(good_a5, tmp_path):
     p = check_one(good_a5, preview_dir=tmp_path / "podglad")
-    assert p.preview == tmp_path / "podglad" / "strona_1_podglad.png"
+    assert p.preview == tmp_path / "podglad" / f"{Path(good_a5).stem}_strona_1_podglad.png"
     assert p.preview.stat().st_size > 0
 
 

@@ -38,7 +38,7 @@ Dla każdej strony skrypt:
   dodatkowe (`pdf_colors.py`); znaczniki cięcia z Canvy (kolor „All”) nie są liczone,
 - rasteryzuje stronę w obszarze netto + spad (bez znaczników) i sprawdza spady, strefę 3 mm,
   ramki i bigi tym samym silnikiem co pliki graficzne (`pdf_margins.py`),
-- zapisuje podgląd `strona_N_podglad.png`: czerwona = cięcie, zielona = strefa 3 mm,
+- zapisuje podgląd `<nazwa pliku>_strona_N_podglad.png`: czerwona = cięcie, zielona = strefa 3 mm,
   pomarańczowa = 5 mm, niebieska = big; problemy w ramkach.
 
 Kody wyjścia: 0 OK, 1 ostrzeżenia lub do weryfikacji, 2 błędy, 3 nie da się sprawdzić
@@ -49,6 +49,8 @@ Kody wyjścia: 0 OK, 1 ostrzeżenia lub do weryfikacji, 2 błędy, 3 nie da się
 | Kod | Znaczenie | Co powiedzieć klientowi |
 |---|---|---|
 | `FORMAT_MISMATCH` | format netto ≠ produkt | podać właściwy format (np. A5 = 148×210 mm) |
+| `FORMAT_CLOSE` | format różni się o ≤1,5 mm (np. Canva 88,9×50,8 zamiast 90×50) | marginesy sprawdzone; zapytać drukarnię, czy drukować w tym formacie |
+| `FOLDED_AS_PAGES` | produkt składany przysłany jako osobne strony-panele | połączyć strony w rozkładówki (zewnętrzna i wewnętrzna) ze spadami |
 | `NO_BLEED_CONTENT_AT_EDGE` | tło do krawędzi, brak spadów | dodać 2,5 mm spadu z każdej strony |
 | `BLEED_NOT_FILLED` | spad jest, ale biały | przedłużyć tło/grafikę na spad |
 | `BLEED_SIZE` | spad mniejszy niż 2,5 mm | ustawić spad 2,5 mm |

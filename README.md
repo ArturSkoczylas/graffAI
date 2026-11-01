@@ -17,6 +17,24 @@ klientów są poprawnie przygotowane do druku.
 |---|---|---|
 | `skills/margin-check` | sprawdza spady, marginesy, ramki i DPI w plikach do druku | ✅ v0.1 |
 | `skills/odpowiedzi-klientom` | szkice odpowiedzi na maile klientów z 32 firmowych szablonów | ✅ demo |
+| `skills/pdf-check` | sprawdza PDF do druku (spady, marginesy, kolory) | ✅ |
+| `skills/wycena` | wyciąga zamówienie z maila i wycenia je w systemie wycen drukarni (API) | ✅ v0.1 |
+
+## Wycena zamówień (`wycena`)
+
+Claude czyta mail klienta, wypisuje pozycje w formacie API systemu wycen drukarni
+(`POST /v1/quote`), a `skills/wycena/scripts/wycena.py` wysyła je do systemu i zwraca
+podsumowanie dla pracownika: ceny pozycji, sumę, założenia, pytania do klienta i pozycje poza wyceną.
+Ceny liczy wyłącznie system wycen. Aplikacja wycen nie jest częścią tego repo – adres API
+ustawia się w `GRAFFAI_WYCENA_URL` (domyślnie `http://localhost:5001/api`).
+
+```bash
+python skills/wycena/scripts/wycena.py --papers            # papiery akceptowane przez system
+python skills/wycena/scripts/wycena.py out/wycena.json     # wycena zamówienia
+GRAFFAI_WYCENA_URL=http://localhost:5001/api pytest tests/test_wycena.py   # + testy na żywym API
+```
+
+Przykładowe maile z oczekiwanym wynikiem i wzorcową ekstrakcją: `evals/wycena.yaml`.
 
 ## Asystent odpowiedzi na maile (`odpowiedzi-klientom`)
 

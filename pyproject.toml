@@ -1,6 +1,13 @@
 [project]
 name = "graffai"
 version = "0.1.0"
-description = "Add your description here"
+description = "Asystent AI dla Drukarni Gutenberg: kontrola plików do druku i odpowiedzi na maile"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "numpy>=2.5.4",
+    "pillow>=13.0.0",
+    "pyyaml>=6.0.3",
+    "pypdf>=4.0",
+    "pypdfium2>=4.30",
+    "pytest>=9.1.1",
+]

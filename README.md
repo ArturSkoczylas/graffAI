@@ -7,7 +7,7 @@ klientów są poprawnie przygotowane do druku.
 
 | # | Źródło | Moduł | Status |
 |---|---|---|---|
-| 1 | PDF | (osobny moduł – w przygotowaniu) | ⏳ |
+| 1 | PDF | `skills/pdf-check/scripts/check_pdf.py` | ✅ |
 | 2 | Pliki graficzne: JPG, PNG, TIFF | `skills/margin-check/scripts/check_image.py` | ✅ v0.1 |
 | 3 | Linki do Canvy | `skills/margin-check/scripts/canva_link.py` | ✅ v0.1 (weryfikacja linku + lista kontrolna) |
 
@@ -51,6 +51,7 @@ scripts/odpowiedzi.py            # wspólna logika: prompt + automatyczna ocena
 scripts/zbuduj.py                # indeks w SKILL.md, demo/demo.html, dist/odpowiedzi-klientom.zip
 scripts/uruchom_evale.py         # testy na prawdziwym modelu (wymaga ANTHROPIC_API_KEY)
 demo/szablon.html → demo.html    # strona demo (artefakt w Claude, działa bez klucza API)
+demo/wycena.js                   # zakładka „Wycena” w demo (dane z maila dla systemu wycen)
 ```
 
 Trzy poziomy sprawdzania:
@@ -63,6 +64,10 @@ Trzy poziomy sprawdzania:
 
 Po każdej zmianie szablonów lub faktów: `python scripts/zbuduj.py` i `pytest`.
 
+Zakładka **Wycena** w demo: Claude wyciąga z maila zamówienie według `skills/wycena/SKILL.md`, a strona
+pokazuje dokładnie to, co `wycena.py` wyśle do systemu wycen (`POST /v1/quote`), oraz cały plik wejściowy
+dla skryptu. Ceny strona nie liczy. Przykłady i oczekiwania pochodzą z `evals/wycena.yaml`.
+
 ## Struktura
 
 ```
@@ -74,16 +79,23 @@ graffAI/
 │       ├── margins.py          # wspólny silnik analizy (używany też przez PDF)
 │       ├── check_image.py      # CLI: pliki graficzne
 │       └── canva_link.py       # CLI: linki Canva
+├── skills/pdf-check/           # skill: PDF do druku (boxy, spady, marginesy, kolory)
+│   └── scripts/check_pdf.py    # CLI; pdf_boxes.py, pdf_margins.py, pdf_colors.py
+├── skills/wycena/              # skill: zamówienie z maila → system wycen (API)
+│   └── scripts/wycena.py       # CLI
+├── skills/odpowiedzi-klientom/ # skill: szkice odpowiedzi na maile (opis wyżej)
+├── .claude/                    # skille (dowiązania do skills/) i agent print-checker dla Claude Code
 ├── tests/                      # pytest + generator próbek
+├── evals/                      # przypadki testowe dla modelu (maile)
 ├── samples/                    # pliki do testów – NIE w repo (dane klientów); syntetyczne: python tests/sample_factory.py
-└── docs/zasady-drukarni.md     # wymagania drukarni (źródło reguł)
+└── docs/                       # zasady-drukarni.md (źródło reguł), wycena-pytania.md
 ```
 
 ## Start
 
 ```bash
-python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
+uv sync && source .venv/bin/activate
+# albo bez uv: python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt
 
 # lista produktów
 python skills/margin-check/scripts/check_image.py --list-products

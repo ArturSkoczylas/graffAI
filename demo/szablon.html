@@ -151,6 +151,17 @@ details.tpl summary::-webkit-details-marker{display:none}
   .tab .n{margin-left:4px}
   h1{font-size:1.3rem}
 }
+/* --- wycena --- */
+.qtable{min-width:720px}
+.qtable td .hint{font-size:.78rem}
+.qsend{margin-top:16px;border-top:1px solid var(--line);padding-top:12px}
+.qcode{margin:8px 0 0;background:var(--sunken);border:1px solid var(--line);border-radius:var(--r);padding:12px;font:13px/1.5 var(--f-mono);white-space:pre;overflow:auto;max-height:420px}
+.qverb{font-weight:600;color:var(--accent)}
+details.qjson{margin-top:12px}
+details.qjson summary{cursor:pointer;color:var(--muted);font-size:.88rem}
+details.qjson pre{margin:8px 0 0;background:var(--sunken);border:1px solid var(--line);border-radius:var(--r);padding:12px;font:13px/1.5 var(--f-mono);white-space:pre;overflow:auto;max-height:420px}
+#qMsg{min-height:170px}
+
 </style>
 
 <div class="cmyk" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
@@ -160,19 +171,20 @@ details.tpl summary::-webkit-details-marker{display:none}
       <div class="reg" aria-hidden="true"></div>
       <div>
         <h1>Asystent maili Gutenberg</h1>
-        <p class="sub">Demo skilla <span class="mono">odpowiedzi-klientom</span> · 32 firmowe szablony · szkice do akceptacji przez pracownika</p>
+        <p class="sub">Demo skilli <span class="mono">odpowiedzi-klientom</span> i <span class="mono">wycena</span> · szkice odpowiedzi i dane do wyceny, do akceptacji przez pracownika</p>
       </div>
     </div>
     <nav class="tabs" role="tablist" aria-label="Widoki">
       <button class="tab" role="tab" id="t-skrzynka" aria-selected="true" data-tab="skrzynka">Skrzynka</button>
       <button class="tab" role="tab" id="t-testy" aria-selected="false" data-tab="testy">Testy<span class="n" id="tabScore"></span></button>
       <button class="tab" role="tab" id="t-szablony" aria-selected="false" data-tab="szablony">Szablony<span class="n" id="tabTpl"></span></button>
+      <button class="tab" role="tab" id="t-wycena" aria-selected="false" data-tab="wycena">Wycena</button>
     </nav>
   </header>
 </div>
 <div class="rule"></div>
 <main class="wrap">
-  <div class="notice" id="noSample" hidden>Generowanie odpowiedzi działa po otwarciu tej strony w Claude (claude.ai lub aplikacja). Tutaj możesz przejrzeć przykładowe wiadomości, kryteria oceny i szablony.</div>
+  <div class="notice" id="noSample" hidden>Generowanie odpowiedzi i wyciąganie danych do wyceny działa po otwarciu tej strony w Claude (claude.ai lub aplikacja). Tutaj możesz przejrzeć przykładowe wiadomości, kryteria oceny i szablony.</div>
 
   <section id="v-skrzynka" role="tabpanel" aria-labelledby="t-skrzynka">
     <div class="desk">
@@ -230,8 +242,36 @@ details.tpl summary::-webkit-details-marker{display:none}
     </div>
     <div class="tpl-list" id="tpls"></div>
   </section>
+  <section id="v-wycena" role="tabpanel" aria-labelledby="t-wycena" hidden>
+    <div class="desk">
+      <div class="inbox">
+        <div class="inbox-head"><span class="label">Zapytania o cenę</span></div>
+        <ul id="qList"></ul>
+      </div>
+      <div class="work">
+        <div class="card">
+          <div class="label">Mail klienta</div>
+          <h2 id="qTitle"></h2>
+          <p class="hint" style="margin:2px 0 0">Claude wypisuje zamówienie w formacie systemu wycen według <span class="mono">skills/wycena/SKILL.md</span>. Ceny nie liczy ani strona, ani Claude – liczy je system wycen drukarni.</p>
+          <div class="field">
+            <label class="label" for="qMsg">Treść wiadomości</label>
+            <textarea id="qMsg" spellcheck="false"></textarea>
+          </div>
+          <div class="actions">
+            <button class="btn primary" id="qGo" type="button">Wyciągnij dane do wyceny</button>
+            <button class="btn" id="qStop" type="button" hidden>Zatrzymaj</button>
+            <button class="btn small" id="qReset" type="button">Przywróć treść</button>
+          </div>
+        </div>
+        <div class="card" id="qResult" hidden></div>
+        <div class="card" id="qExpect"></div>
+      </div>
+    </div>
+  </section>
+
 </main>
 
+<script>/*__WYCENA__*/</script>
 <script>
 const D = /*__DANE__*/null;
 const CUSTOM = "__wlasna";
@@ -337,6 +377,10 @@ const ERR = {
 };
 const errText = e => ERR[e && e.code] || "Połączenie z Claude przerwane. Spróbuj ponownie.";
 const HIDE = new Set(["not_granted", "sampling_disabled", "not_declared", "capability_disabled", "capability_removed"]);
+function lostSample(e) {
+  sample = null; $("noSample").hidden = false; $("noSample").textContent = errText(e);
+  window.GraffaiWycena.setSample(null); render();
+}
 
 // ---------- generowanie
 async function run(id, { fresh = false } = {}) {
@@ -360,7 +404,7 @@ async function run(id, { fresh = false } = {}) {
     if (e && e.code === "cancelled") S.res[id] = undefined;
     else {
       S.res[id] = { err: errText(e), secs: (performance.now() - t0) / 1000 };
-      if (e && HIDE.has(e.code)) { sample = null; $("noSample").hidden = false; $("noSample").textContent = errText(e); }
+      if (e && HIDE.has(e.code)) lostSample(e);
     }
   } finally {
     S.running.delete(id); delete S.ctl[id];
@@ -542,7 +586,7 @@ let tab = "skrzynka";
 function setTab(t) {
   tab = t;
   for (const b of document.querySelectorAll(".tab")) b.setAttribute("aria-selected", b.dataset.tab === t);
-  for (const v of ["skrzynka", "testy", "szablony"]) $("v-" + v).hidden = v !== t;
+  for (const v of ["skrzynka", "testy", "szablony", "wycena"]) $("v-" + v).hidden = v !== t;
 }
 document.querySelector("nav.tabs").addEventListener("click", e => { const b = e.target.closest(".tab"); if (b) setTab(b.dataset.tab); });
 $("list").addEventListener("click", e => { const b = e.target.closest("button[data-id]"); if (b) { S.sel = b.dataset.id; render(); } });
@@ -578,10 +622,12 @@ $("tabTpl").textContent = D.szablony.length;
 $("cat").innerHTML = '<option value="">Wszystkie kategorie</option>' +
   [...new Set(D.szablony.map(t => t.kategoria))].map(k => `<option>${esc(k)}</option>`).join("");
 load();
+window.GraffaiWycena.init({ errText, onFatal: e => { if (e && HIDE.has(e.code)) lostSample(e); } });
 renderTemplates();
 render();
 (async () => {
   try { sample = window.claude ? await window.claude.use("sample") : null; } catch (_) { sample = null; }
+  window.GraffaiWycena.setSample(sample);
   $("noSample").hidden = !!sample;
   render();
 })();

@@ -40,9 +40,44 @@ def build_demo(out: Path) -> None:
         "dozwoloneKwoty": sorted(O.allowed_amounts()),
     }
     payload = json.dumps(data, ensure_ascii=False).replace("</", "<\\/")
-    if "/*__DANE__*/null" not in src:
-        raise SystemExit("Brak znacznika /*__DANE__*/null w demo/szablon.html")
+    for mark in ("/*__DANE__*/null", "/*__WYCENA__*/"):
+        if mark not in src:
+            raise SystemExit(f"Brak znacznika {mark} w demo/szablon.html")
+    src = src.replace("/*__WYCENA__*/", quote_js())
     out.write_text(src.replace("/*__DANE__*/null", payload), encoding="utf-8")
+
+
+QUOTE_PROMPT = """Jesteś asystentem Drukarni Gutenberg. Przygotuj dane do wyceny zamówienia z wiadomości
+klienta, postępując według instrukcji skilla „wycena” poniżej.
+
+W tym demo:
+- nie uruchamiasz skryptu i niczego nie wysyłasz do systemu wycen – zwracasz tylko zawartość pliku
+  z kroku 5 (strona pokaże ją pracownikowi i przekaże do scripts/wycena.py);
+- lista papierów z systemu wycen (--papers) jest niedostępna: nazwę papieru wpisz według zasad
+  z kroku 2 i zapisz ten wybór jako założenie;
+- odpowiedz wyłącznie obiektem JSON z kluczami "zamowienie", "zalozenia", "pytania", "poza_wycena",
+  bez komentarzy i bez bloku kodu.
+
+<instrukcja_skilla>
+{skill}
+</instrukcja_skilla>"""
+
+
+def quote_js() -> str:
+    """demo/wycena.js z promptem (instrukcja skilla „wycena”) i przykładami z evals/wycena.yaml."""
+    import re
+    import yaml
+
+    skill = (O.ROOT / "skills/wycena/SKILL.md").read_text(encoding="utf-8")
+    skill = re.sub(r"\A---\n.*?\n---\n", "", skill, flags=re.S).strip()     # bez frontmattera
+    cases = yaml.safe_load((O.ROOT / "evals/wycena.yaml").read_text(encoding="utf-8"))["przypadki"]
+    data = {"prompt": QUOTE_PROMPT.format(skill=skill),
+            "przypadki": [{k: c[k] for k in ("id", "tytul", "wiadomosc", "oczekiwane")} for c in cases]}
+    payload = json.dumps(data, ensure_ascii=False, default=str).replace("<", "\\u003c")
+    js = (O.ROOT / "demo" / "wycena.js").read_text(encoding="utf-8")
+    if "/*__WYCENA__*/null" not in js:
+        raise SystemExit("Brak znacznika /*__WYCENA__*/null w demo/wycena.js")
+    return js.replace("/*__WYCENA__*/null", payload)
 
 
 def build_zip(out: Path) -> None:

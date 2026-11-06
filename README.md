@@ -59,14 +59,15 @@ Trzy poziomy sprawdzania:
 1. **Testy offline** (`pytest`): spójność szablonów, zmiennych, linków i przypadków testowych.
    Sprawdzają też, czy ocena wyłapuje wymyślone kwoty, numer konta i niewypełnione pola.
 2. **Demo** (artefakt w Claude): skrzynka z 20 przykładowymi mailami i polem na własny,
-   wywołania Claude'a na żywo, zakładka „Testy” z automatyczną oceną wszystkich przypadków.
+   wywołania Claude'a na żywo i automatyczna ocena każdego przykładu.
 3. **Evale przez API**: `python scripts/uruchom_evale.py` zapisuje raport do `evals/wyniki.md`.
 
 Po każdej zmianie szablonów lub faktów: `python scripts/zbuduj.py` i `pytest`.
 
 Zakładka **Wycena** w demo: Claude wyciąga z maila zamówienie według `skills/wycena/SKILL.md`, a strona
 pokazuje dokładnie to, co `wycena.py` wyśle do systemu wycen (`POST /v1/quote`), oraz cały plik wejściowy
-dla skryptu. Ceny strona nie liczy. Przykłady i oczekiwania pochodzą z `evals/wycena.yaml`.
+dla skryptu. Ceny strona nie liczy. Przykłady i oczekiwania pochodzą z `evals/wycena.yaml`;
+przycisk „+ Nowy mail” dodaje własne maile do sprawdzenia.
 
 ## Struktura
 

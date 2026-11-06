@@ -3,7 +3,7 @@
 // wyśle do systemu wycen drukarni (POST /api/v1/quote), oraz plik wejściowy dla tego skryptu.
 (() => {
   const D = /*__WYCENA__*/null;          // {prompt, przypadki: [{id, tytul, wiadomosc, oczekiwane}]}
-  const CUSTOM = "__wlasna";
+  const OLD_CUSTOM = "__wlasna";            // jedna „Własna wiadomość” z poprzedniej wersji strony
   const PRODUCT_TYPES = ["plano", "softcover_book", "hardcover_book", "saddle_stitched_book"];
   const TYPE_NAMES = { plano: "jednokartkowy / składany", saddle_stitched_book: "broszura zszywana",
                        softcover_book: "książka – oprawa miękka", hardcover_book: "książka – oprawa twarda" };
@@ -14,7 +14,12 @@
   const $ = id => document.getElementById(id);
   const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   const BY_ID = Object.fromEntries(D.przypadki.map(c => [c.id, c]));
-  const Q = { sel: D.przypadki[0].id, edits: {}, res: {}, running: new Set(), ctl: {} };
+  const Q = { sel: D.przypadki[0].id, edits: {}, res: {}, running: new Set(), ctl: {}, custom: [] };
+  const isCustom = id => Q.custom.includes(id);
+  function customTitle(id) {
+    const line = (Q.edits[id] || "").split("\n").map(l => l.trim()).find(Boolean);
+    return line ? (line.length > 48 ? line.slice(0, 47) + "…" : line) : "Nowy mail";
+  }
   let sample = null, errText = () => "", onFatal = () => {};
 
   // ---------- prompt i walidacja (jak load_input w wycena.py)
@@ -87,7 +92,7 @@
   function inputFor(id) {
     const e = Q.edits[id];
     if (e != null) return e;
-    return id === CUSTOM ? "" : BY_ID[id].wiadomosc;
+    return isCustom(id) ? "" : BY_ID[id].wiadomosc;
   }
   async function run(id) {
     if (!sample || Q.running.has(id)) return;
@@ -104,7 +109,7 @@
       try { data = loadInput(raw); }
       catch (e) { Q.res[id] = { err: "Wynik nie przeszedłby przez wycena.py: " + e.message, raw, secs: (performance.now() - t0) / 1000 }; return; }
       Q.res[id] = { data, secs: (performance.now() - t0) / 1000,
-                    checks: id === CUSTOM ? null : evaluate(BY_ID[id], data) };
+                    checks: isCustom(id) ? null : evaluate(BY_ID[id], data) };
     } catch (e) {
       if (e && e.code === "cancelled") Q.res[id] = undefined;
       else { Q.res[id] = { err: errText(e), secs: (performance.now() - t0) / 1000 }; onFatal(e); }
@@ -119,14 +124,33 @@
     try {
       const keep = {};
       for (const [k, v] of Object.entries(Q.res)) if (v && v.data) keep[k] = v;
-      localStorage.setItem(KEY, JSON.stringify({ res: keep, edits: Q.edits }));
+      localStorage.setItem(KEY, JSON.stringify({ res: keep, edits: Q.edits, custom: Q.custom }));
     } catch (_) {}
   }
   function load() {
     try {
       const d = JSON.parse(localStorage.getItem(KEY) || "null");
-      if (d) { Object.assign(Q.res, d.res || {}); Object.assign(Q.edits, d.edits || {}); }
+      if (d) {
+        Object.assign(Q.res, d.res || {}); Object.assign(Q.edits, d.edits || {});
+        Q.custom = Array.isArray(d.custom) ? d.custom.filter(id => typeof id === "string") : [];
+        if (!Q.custom.includes(OLD_CUSTOM) && (Q.edits[OLD_CUSTOM] || Q.res[OLD_CUSTOM])) Q.custom.push(OLD_CUSTOM);
+      }
     } catch (_) {}
+  }
+  function newMail() {
+    const id = "mail-" + Date.now().toString(36);
+    Q.custom.push(id); Q.edits[id] = ""; Q.sel = id;
+    save(); render();
+    const cur = $("qList").querySelector('[aria-current="true"]');
+    if (cur) cur.scrollIntoView({ block: "nearest" });
+    $("qMsg").focus();
+  }
+  function removeMail(id) {
+    const c = Q.ctl[id]; if (c) c.abort();
+    Q.custom = Q.custom.filter(x => x !== id);
+    delete Q.edits[id]; delete Q.res[id];
+    Q.sel = Q.custom.at(-1) || D.przypadki[0].id;
+    save(); render();
   }
 
   // ---------- widok
@@ -139,7 +163,7 @@
     return r.data ? "ok" : "";
   }
   function renderList() {
-    const items = [...D.przypadki.map(c => ({ id: c.id, t: c.tytul })), { id: CUSTOM, t: "Własna wiadomość" }];
+    const items = [...D.przypadki.map(c => ({ id: c.id, t: c.tytul })), ...Q.custom.map(id => ({ id, t: customTitle(id) }))];
     $("qList").innerHTML = items.map(x => {
       const r = Q.res[x.id];
       const score = r && r.checks ? r.checks.filter(c => c.ok).length + "/" + r.checks.length : "";
@@ -147,7 +171,7 @@
         <span class="dot ${status(x.id)}" aria-hidden="true"></span>
         <span class="it-title">${esc(x.t)}</span>
         <span class="it-score">${esc(score)}</span>
-        <span class="it-cat">${x.id === CUSTOM ? "wpisz dowolny mail" : "przykład z evals/wycena.yaml"}</span>
+        <span class="it-cat">${isCustom(x.id) ? "Twój mail" : "przykład z evals/wycena.yaml"}</span>
       </button></li>`;
     }).join("");
   }
@@ -207,8 +231,9 @@
   }
 
   function renderSide() {
-    const c = Q.sel === CUSTOM ? null : BY_ID[Q.sel];
-    $("qTitle").textContent = c ? c.tytul : "Własna wiadomość";
+    const c = isCustom(Q.sel) ? null : BY_ID[Q.sel];
+    $("qTitle").textContent = c ? c.tytul : customTitle(Q.sel);
+    $("qReset").textContent = c ? "Przywróć treść" : "Usuń ten mail";
     if (document.activeElement !== $("qMsg")) $("qMsg").value = inputFor(Q.sel);
     const busy = Q.running.has(Q.sel);
     $("qGo").disabled = busy || !sample;
@@ -217,7 +242,7 @@
     const ec = $("qExpect");
     const r = Q.res[Q.sel];
     if (!c) {
-      ec.innerHTML = `<div class="label">Jak to sprawdzić</div><p class="empty" style="margin:6px 0 0">Dla własnej wiadomości strona sprawdza tylko format: czy wycena.py przyjmie plik i czy pozycje mają komplet pól. Pełne kryteria mają przykłady z listy.</p>`;
+      ec.innerHTML = `<div class="label">Jak to sprawdzić</div><p class="empty" style="margin:6px 0 0">Dla Twojego maila strona sprawdza tylko format: czy wycena.py przyjmie plik i czy pozycje mają komplet pól. Pełne kryteria mają przykłady z listy.</p>`;
       return;
     }
     const exp = c.oczekiwane || {};
@@ -240,10 +265,17 @@
     errText = opts.errText; onFatal = opts.onFatal;
     load();
     $("qList").addEventListener("click", e => { const b = e.target.closest("button[data-id]"); if (b) { Q.sel = b.dataset.id; render(); } });
-    $("qMsg").addEventListener("input", () => { Q.edits[Q.sel] = $("qMsg").value; save(); });
+    $("qMsg").addEventListener("input", () => {
+      Q.edits[Q.sel] = $("qMsg").value; save();
+      if (isCustom(Q.sel)) { $("qTitle").textContent = customTitle(Q.sel); renderList(); }
+    });
     $("qGo").addEventListener("click", () => run(Q.sel));
     $("qStop").addEventListener("click", () => { const c = Q.ctl[Q.sel]; if (c) c.abort(); });
-    $("qReset").addEventListener("click", () => { delete Q.edits[Q.sel]; save(); render(); });
+    $("qReset").addEventListener("click", () => {
+      if (isCustom(Q.sel)) removeMail(Q.sel);
+      else { delete Q.edits[Q.sel]; save(); render(); }
+    });
+    $("qNew").addEventListener("click", newMail);
     $("qResult").addEventListener("click", async e => {
       const b = e.target.closest("button[data-copy]"); if (!b) return;
       const d = Q.res[Q.sel] && Q.res[Q.sel].data; if (!d) return;

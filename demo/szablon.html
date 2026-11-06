@@ -110,19 +110,12 @@ textarea:focus{outline:2px solid var(--accent);outline-offset:-1px}
 .err{background:var(--bad-soft);color:var(--fg);border-radius:var(--r);padding:10px 12px;margin-top:12px;font-size:.9rem}
 .thinking{color:var(--muted);font-style:italic}
 
-/* --- testy --- */
-.summary{display:flex;flex-wrap:wrap;gap:12px 28px;align-items:center;margin-bottom:16px}
-.stat .v{font:700 2rem/1 var(--f-display);font-variant-numeric:tabular-nums}
-.stat .k{color:var(--muted);font-size:.82rem}
-.bar{height:8px;background:var(--sunken);border-radius:999px;overflow:hidden;min-width:180px;flex:1}
-.bar i{display:block;height:100%;background:var(--ok);transition:width .3s}
+/* --- tabele --- */
 .tablewrap{overflow-x:auto;background:var(--surface);border:1px solid var(--line);border-radius:var(--r)}
 table{border-collapse:collapse;width:100%;min-width:640px;font-size:.9rem}
 th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
 th{font:600 .74rem var(--f-display);text-transform:uppercase;letter-spacing:.08em;color:var(--muted);background:var(--sunken)}
 td.num{font-variant-numeric:tabular-nums;font-family:var(--f-mono);font-size:.85rem;white-space:nowrap}
-tr.clickable{cursor:pointer}tr.clickable:hover td{background:var(--sunken)}
-.fails{color:var(--bad);font-size:.82rem}
 
 /* --- szablony --- */
 .filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:14px}
@@ -176,7 +169,6 @@ details.qjson pre{margin:8px 0 0;background:var(--sunken);border:1px solid var(-
     </div>
     <nav class="tabs" role="tablist" aria-label="Widoki">
       <button class="tab" role="tab" id="t-skrzynka" aria-selected="true" data-tab="skrzynka">Skrzynka</button>
-      <button class="tab" role="tab" id="t-testy" aria-selected="false" data-tab="testy">Testy<span class="n" id="tabScore"></span></button>
       <button class="tab" role="tab" id="t-szablony" aria-selected="false" data-tab="szablony">Szablony<span class="n" id="tabTpl"></span></button>
       <button class="tab" role="tab" id="t-wycena" aria-selected="false" data-tab="wycena">Wycena</button>
     </nav>
@@ -216,23 +208,6 @@ details.qjson pre{margin:8px 0 0;background:var(--sunken);border:1px solid var(-
     </div>
   </section>
 
-  <section id="v-testy" role="tabpanel" aria-labelledby="t-testy" hidden>
-    <div class="summary">
-      <div class="stat"><div class="v" id="sPass">0/0</div><div class="k">przypadków zaliczonych</div></div>
-      <div class="stat"><div class="v" id="sChecks">–</div><div class="k">sprawdzeń zaliczonych</div></div>
-      <div class="bar" aria-hidden="true"><i id="sBar" style="width:0"></i></div>
-      <div class="actions" style="margin:0">
-        <button class="btn primary" id="runAll">Uruchom wszystkie</button>
-        <button class="btn" id="runFailed">Powtórz niezaliczone</button>
-        <button class="btn" id="stopAll" hidden>Zatrzymaj</button>
-      </div>
-    </div>
-    <p class="hint" style="margin:-6px 0 14px">Każdy przypadek to mail klienta z oczekiwaniami: właściwy szablon, wymagane i zakazane frazy, flaga „wymaga człowieka”. Dodatkowo każda odpowiedź jest sprawdzana, czy nie zawiera wymyślonych kwot ani numeru konta. Przypadki pochodzą z pliku <span class="mono">evals/odpowiedzi-klientom.yaml</span>.</p>
-    <div class="tablewrap"><table>
-      <thead><tr><th>Przypadek</th><th>Kategoria</th><th>Wynik</th><th>Szablony</th><th>Czas</th></tr></thead>
-      <tbody id="testRows"></tbody>
-    </table></div>
-  </section>
 
   <section id="v-szablony" role="tabpanel" aria-labelledby="t-szablony" hidden>
     <div class="filters">
@@ -245,7 +220,7 @@ details.qjson pre{margin:8px 0 0;background:var(--sunken);border:1px solid var(-
   <section id="v-wycena" role="tabpanel" aria-labelledby="t-wycena" hidden>
     <div class="desk">
       <div class="inbox">
-        <div class="inbox-head"><span class="label">Zapytania o cenę</span></div>
+        <div class="inbox-head"><span class="label">Zapytania o cenę</span><button class="btn small" id="qNew" type="button">+ Nowy mail</button></div>
         <ul id="qList"></ul>
       </div>
       <div class="work">
@@ -255,7 +230,7 @@ details.qjson pre{margin:8px 0 0;background:var(--sunken);border:1px solid var(-
           <p class="hint" style="margin:2px 0 0">Claude wypisuje zamówienie w formacie systemu wycen według <span class="mono">skills/wycena/SKILL.md</span>. Ceny nie liczy ani strona, ani Claude – liczy je system wycen drukarni.</p>
           <div class="field">
             <label class="label" for="qMsg">Treść wiadomości</label>
-            <textarea id="qMsg" spellcheck="false"></textarea>
+            <textarea id="qMsg" spellcheck="false" placeholder="Wklej albo wpisz mail klienta z zapytaniem o cenę…"></textarea>
           </div>
           <div class="actions">
             <button class="btn primary" id="qGo" type="button">Wyciągnij dane do wyceny</button>
@@ -280,7 +255,7 @@ const BY_ID = Object.fromEntries(CASES.map(c => [c.id, c]));
 const TPL = Object.fromEntries(D.szablony.map(t => [t.id, t]));
 const ALLOWED = new Set(D.dozwoloneKwoty);
 
-const S = { sel: CASES[0].id, edits: {}, res: {}, running: new Set(), ctl: {}, batch: null };
+const S = { sel: CASES[0].id, edits: {}, res: {}, running: new Set(), ctl: {} };
 let sample = null;
 
 // ---------- utils
@@ -412,17 +387,6 @@ async function run(id, { fresh = false } = {}) {
   }
 }
 
-async function runBatch(ids) {
-  if (!sample || S.batch) return;
-  const queue = [...ids];
-  S.batch = { stop: false };
-  render();
-  const worker = async () => {
-    while (queue.length && S.batch && !S.batch.stop && sample) await run(queue.shift(), { fresh: true });
-  };
-  await Promise.all([worker(), worker()]);
-  S.batch = null; render();
-}
 
 // ---------- pamięć wyników (tylko w tej przeglądarce)
 const KEY = "graffai-demo-v1";
@@ -530,33 +494,6 @@ function renderResult() {
     </div>`;
 }
 
-function renderTests() {
-  const done = CASES.filter(c => S.res[c.id] && S.res[c.id].checks);
-  const pass = done.filter(c => S.res[c.id].checks.every(x => x.ok)).length;
-  let all = 0, ok = 0;
-  for (const c of done) { all += S.res[c.id].checks.length; ok += S.res[c.id].checks.filter(x => x.ok).length; }
-  $("sPass").textContent = pass + "/" + CASES.length;
-  $("sChecks").textContent = all ? ok + "/" + all : "–";
-  $("sBar").style.width = (pass / CASES.length * 100) + "%";
-  $("tabScore").textContent = done.length ? pass + "/" + CASES.length : "";
-  const batch = !!S.batch;
-  $("runAll").disabled = batch || !sample;
-  $("runFailed").disabled = batch || !sample || !CASES.some(c => status(c.id) === "bad");
-  $("stopAll").hidden = !batch;
-  $("testRows").innerHTML = CASES.map(c => {
-    const r = S.res[c.id], st = status(c.id);
-    let wynik = '<span class="hint">nie uruchomiono</span>';
-    if (st === "run") wynik = '<span class="dot run" style="display:inline-block;margin:0 6px 0 0;vertical-align:middle"></span>w toku';
-    else if (r && r.err) wynik = `<span class="fails">${esc(r.err)}</span>`;
-    else if (r && r.checks) {
-      const fails = r.checks.filter(x => !x.ok);
-      wynik = `<strong style="color:var(--${fails.length ? "bad" : "ok"})">${fails.length ? "✗" : "✓"} ${scoreText(c.id)}</strong>` +
-        (fails.length ? `<div class="fails">${fails.map(f => esc(f.nazwa)).join("; ")}</div>` : "");
-    }
-    const tp = r && r.result ? (r.result.szablony || []).join(", ") || "–" : "";
-    return `<tr class="clickable" data-open="${esc(c.id)}"><td><strong>${esc(c.tytul)}</strong></td><td>${esc(c.kategoria)}</td><td>${wynik}</td><td class="mono">${esc(tp)}</td><td class="num">${r && r.secs ? fmtS(r.secs) : ""}</td></tr>`;
-  }).join("");
-}
 
 function hl(body) {
   return esc(body)
@@ -578,7 +515,7 @@ function renderTemplates() {
 }
 
 function render() {
-  renderList(); renderCase(); renderResult(); renderTests();
+  renderList(); renderCase(); renderResult();
 }
 
 // ---------- zdarzenia
@@ -586,7 +523,7 @@ let tab = "skrzynka";
 function setTab(t) {
   tab = t;
   for (const b of document.querySelectorAll(".tab")) b.setAttribute("aria-selected", b.dataset.tab === t);
-  for (const v of ["skrzynka", "testy", "szablony", "wycena"]) $("v-" + v).hidden = v !== t;
+  for (const v of ["skrzynka", "szablony", "wycena"]) $("v-" + v).hidden = v !== t;
 }
 document.querySelector("nav.tabs").addEventListener("click", e => { const b = e.target.closest(".tab"); if (b) setTab(b.dataset.tab); });
 $("list").addEventListener("click", e => { const b = e.target.closest("button[data-id]"); if (b) { S.sel = b.dataset.id; render(); } });
@@ -595,10 +532,6 @@ $("msg").addEventListener("input", e => { (S.edits[S.sel] ||= {}).wiadomosc = e.
 $("note").addEventListener("input", e => { (S.edits[S.sel] ||= {}).notatka = e.target.value; });
 $("go").addEventListener("click", () => run(S.sel, { fresh: !!(S.res[S.sel] && S.res[S.sel].result) }));
 $("stop").addEventListener("click", () => S.ctl[S.sel] && S.ctl[S.sel].abort());
-$("runAll").addEventListener("click", () => runBatch(CASES.map(c => c.id)));
-$("runFailed").addEventListener("click", () => runBatch(CASES.filter(c => status(c.id) === "bad").map(c => c.id)));
-$("stopAll").addEventListener("click", () => { if (S.batch) S.batch.stop = true; for (const c of Object.values(S.ctl)) c.abort(); });
-$("testRows").addEventListener("click", e => { const tr = e.target.closest("tr[data-open]"); if (tr) { S.sel = tr.dataset.open; setTab("skrzynka"); render(); } });
 document.addEventListener("click", e => {
   const ch = e.target.closest("[data-tpl]"); if (!ch) return;
   tplOpen = ch.dataset.tpl; $("q").value = ""; $("cat").value = ""; renderTemplates(); setTab("szablony");

@@ -1,0 +1,15 @@
+services:
+  mail-harness:
+    build:
+      context: .
+      dockerfile: harness/Dockerfile
+    env_file:
+      - .env
+    environment:
+      STATE_FILE: /data/state.json
+    volumes:
+      - mail_harness_state:/data
+    restart: unless-stopped
+
+volumes:
+  mail_harness_state:

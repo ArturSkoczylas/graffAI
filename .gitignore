@@ -2,6 +2,7 @@ __pycache__/
 *.pyc
 .venv/
 venv/
+pylibs/
 .pytest_cache/
 .idea/
 .vscode/
@@ -15,3 +16,5 @@ samples/
 source-files/
 dist/
 evals/wyniki.md
+# sekrety harness (IMAP, klucze API) – patrz .env.example
+.env

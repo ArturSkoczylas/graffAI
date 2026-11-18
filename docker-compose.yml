@@ -6,10 +6,10 @@ services:
     env_file:
       - .env
     environment:
-      STATE_FILE: /data/state.json
-    volumes:
-      - mail_harness_state:/data
+      # Musi być 0.0.0.0, nie 127.0.0.1 – Docker przekazuje ruch na interfejs kontenera,
+      # nie na jego loopback. Realną granicą bezpieczeństwa jest "ports:" poniżej
+      # (publikuje port tylko na 127.0.0.1 hosta, nie w sieci).
+      API_HOST: "0.0.0.0"
+    ports:
+      - "127.0.0.1:8765:8765"
     restart: unless-stopped
-
-volumes:
-  mail_harness_state:

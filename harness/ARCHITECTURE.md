@@ -3,12 +3,22 @@
 ## Metafora: plac zabaw i aktor
 
 `harness` to **playground** – infrastruktura, która nie wie nic o tym, jak napisać dobrą
-odpowiedź klientowi. Pilnuje skrzynki IMAP i daje agentowi dokładnie jedno "zabawkę":
-narzędzie `create_draft(subject, body, needs_human, staff_notes)`.
+odpowiedź klientowi. Przyjmuje jedno żądanie HTTP z surowym e-mailem i daje agentowi dokładnie
+jedno "zabawkę": narzędzie `create_draft(subject, body, needs_human, staff_notes)`.
 
-**Aktorem** jest zawartość `skills/odpowiedzi-klientom/` (SKILL.md, fakty.yaml, szablony) –
-to ona decyduje, co napisać. Harness tylko wczytuje tę treść jako prompt systemowy i
-zapisuje to, co aktor zwróci, do folderu Szkice. Harness nigdy nie wysyła niczego sam.
+**Aktorem** jest `agents/harness-agent.md` (instrukcje bazowe agenta) plus wszystkie skille pod
+`skills/*/SKILL.md` (odpowiedzi-klientom, pdf-check, margin-check, wycena) – to one decydują, co
+napisać. Harness wczytuje agenta jako bazowy prompt systemowy, dokłada do niego lekki indeks
+`<available_skills>` (nazwa + opis każdego skilla, z `skills_registry.discover_skills()`) i daje
+modelowi narzędzie `read_skill(name)`, którym sam wczyta pełną instrukcję skilla, gdy uzna go za
+właściwy – harness nie zgaduje z wyprzedzeniem, który skill jest potrzebny, i nie wkleja ich
+wszystkich na stałe. Harness zapisuje to, co aktor zwróci, do folderu Szkice. Nigdy nie wysyła
+niczego sam.
+
+**Wywołującym** jest przycisk w `thunderbird-extension/` – klik na otwartej wiadomości
+wysyła jej surową treść (`messenger.messages.getRaw()`) do `POST /draft`. Harness nie
+obserwuje skrzynki w tle – każdy szkic powstaje na żądanie, dla jednej, już posiadanej
+wiadomości.
 
 ## Drzewo katalogów
 
@@ -21,53 +31,54 @@ harness/
     ├── config.py         – Config: walidacja zmiennych środowiskowych, fail-fast
     ├── agent/            – AI ("aktor")
     │   ├── skill_prompt.py   – DraftDecision, CREATE_DRAFT_TOOL, budowa promptu
+    │   ├── skills_registry.py – odkrywanie skilli (skills/*/SKILL.md), read_skill na żądanie
+    │   ├── print_check.py    – narzędzie check_print_file (pdf-check/margin-check jako kod)
+    │   ├── run_script.py     – narzędzie run_skill_script (wycena.py/canva_link.py jako subprocess)
     │   ├── agent_loop.py     – generyczna pętla wywołań narzędzi (niezależna od dostawcy)
     │   └── providers/
     │       ├── base.py              – BaseProvider (abstrakcja), ToolSpec/ToolCall/ProviderReply
     │       └── anthropic_provider.py – AnthropicProvider (Claude)
-    └── mail_listener/    – infrastruktura pocztowa ("plac zabaw")
-        ├── watcher.py        – pętla IDLE/poll, handle_new_mail (okablowanie + granice błędów)
-        ├── mailbox.py        – IMAP: połączenie, select_folder/fetch_new, budowa i zapis szkicu
-        └── state.py          – ProcessedState: punkt startowy UID + dedup po Message-ID
+    ├── mail_listener/    – infrastruktura pocztowa ("plac zabaw")
+    │   └── mailbox.py        – parsowanie e-maili, budowa szkicu MIME, IMAP connect/append
+    └── api/              – wejście z zewnątrz ("plac zabaw" od strony HTTP)
+        └── server.py         – serwer HTTP stdlib: POST /draft, okablowanie + granice błędów
 ```
 
-Reguła zależności: `mail_listener/` może importować z `agent/` (potrzebuje `DraftDecision`
-do zbudowania maila), ale `agent/` nigdy nie importuje z `mail_listener/` – logika AI nie wie,
-że to e-mail; mogłaby równie dobrze obsługiwać inny kanał.
+Reguła zależności: `mail_listener/` i `api/` mogą importować z `agent/` (potrzebują
+`DraftDecision` do zbudowania maila), ale `agent/` nigdy nie importuje z nich – logika AI nie
+wie, że to e-mail; mogłaby równie dobrze obsługiwać inny kanał.
 
-## Przepływ dla jednej wiadomości
+## Przepływ dla jednego żądania
 
-1. `main.py` buduje `Config` ze zmiennych środowiskowych i woła `watcher.run(cfg)`.
-2. `watcher.py` łączy się przez `mailbox.connect(cfg)` i albo czeka na IDLE, albo odpytuje
-   (`poll_loop`/`idle_loop`). Gdy coś się zmieni, woła `handle_new_mail(cfg, client, state)`.
-3. `handle_new_mail`:
-   - `mailbox.select_folder` – wybiera INBOX i odczytuje `UIDVALIDITY`/`UIDNEXT`.
-   - **Pierwszy start albo zmiana UIDVALIDITY** → ustawia `state.last_uid` na aktualny
-     najwyższy UID i **wychodzi bez przetwarzania** (patrz niżej: "Od teraz").
-   - W przeciwnym razie: `mailbox.fetch_new(client, since_uid=state.last_uid)` – tylko
-     wiadomości z UID większym niż zapamiętany punkt.
-   - Dla każdej nowej wiadomości (jeśli jej Message-ID nie jest już w `state.processed_ids`):
-     - `skill_prompt.build_user_message(msg.plain_text)` – owija treść klienta jako dane.
-     - `agent_loop.run_agent(provider, system_prompt, user_message, tools=[CREATE_DRAFT_TOOL], stop_tool="create_draft")`
-       – pętla: `provider.step(...)` → jeśli model wywołał `create_draft`, zwraca `ToolCall`
-       natychmiast; jeśli wywołał coś innego, wynik (albo błąd) trafia z powrotem do modelu
-       jako `tool_result` i pętla kontynuuje (maks. `MAX_TURNS` razy).
+1. `main.py` buduje `Config` ze zmiennych środowiskowych i woła `api.server.run(cfg)`.
+2. `server.py` nasłuchuje na `cfg.api_host:cfg.api_port` (domyślnie `127.0.0.1:8765`,
+   `ThreadingHTTPServer` ze stdlib – zero nowych zależności). Rozszerzenie Thunderbirda woła
+   `POST /draft` z surowym RFC822 w ciele żądania.
+3. `_DraftHandler.do_POST` czyta ciało i woła `handle_draft_request(cfg, raw)` – czystą funkcję
+   (bez I/O sieciowego), więc testowalną bez stawiania prawdziwego serwera:
+   - Puste ciało → `400`.
+   - W przeciwnym razie woła `create_draft_from_raw_email(cfg, raw)`:
+     - `email.message_from_bytes(raw)` + `mailbox.extract_plain_text(original)`.
+     - `skill_prompt.build_system_prompt`/`build_user_message` – budują prompt.
+     - `agent_loop.run_agent(provider, system_prompt, user_message, tools=[CREATE_DRAFT_TOOL,
+       read_skill, ...], stop_tool="create_draft")` – pętla: `provider.step(...)` → jeśli model wywołał
+       `create_draft`, zwraca `ToolCall` natychmiast; jeśli wywołał coś innego, wynik (albo
+       błąd) trafia z powrotem do modelu jako `tool_result` i pętla kontynuuje (maks.
+       `MAX_TURNS` razy).
      - `DraftDecision.model_validate(tool_call.raw_input)` – walidacja tego, co model zwrócił.
-     - `mailbox.build_draft_mime(...)` + `mailbox.append_draft(...)` – zapis do Szkiców
-       (IMAP APPEND, flaga `\Draft`).
-     - `state.mark_processed(...)` + `state.advance_uid(...)` + `state.save(...)`.
-4. Wynik (`ProcessedState`) wraca do `watcher.py` i jest przekazywany do kolejnego cyklu.
+     - `mailbox.build_draft_mime(...)` + `mailbox.connect(cfg)` + `mailbox.append_draft(...)` –
+       zapis do Szkiców (IMAP APPEND, flaga `\Draft`), połączenie zawsze zamykane (`finally`).
+     - Każdy błąd na tej ścieżce → `500` z treścią błędu w `message`; handler nigdy nie
+       podnosi wyjątku na zewnątrz, zawsze zwraca odpowiedź HTTP.
+   - Sukces → `200` z `{"status": "ok", "subject": ..., "needs_human": ...}`.
+4. Połączenie IMAP jest otwierane i zamykane per żądanie (nie ma trwałego połączenia IDLE ani
+   żadnego stanu między żądaniami – każde żądanie jest niezależne).
 
 ## Kluczowe typy
 
 - `Config` (pydantic, frozen) – jedyny sposób budowy to `Config.from_env(env)`; waliduje
   wszystko na starcie (brakujący klucz, źle sformatowany port, nieznany dostawca) – błąd
   konfiguracji nigdy nie wychodzi w połowie działania, tylko od razu przy starcie.
-- `ProcessedState` (pydantic, frozen) – `processed_ids` (dedup po Message-ID, ucięty do
-  ostatnich 500) + `last_uid`/`uid_validity` (punkt startowy "od teraz"). Każda mutacja
-  (`mark_processed`, `advance_uid`, `with_baseline`) zwraca nową instancję.
-- `FetchedMessage` (dataclass) – uid, message_id, plain_text, oryginalny `email.message.Message`.
-  Czysta struktura przekazywana z `mailbox.py` do `watcher.py`, bez logiki.
 - `DraftDecision` (pydantic) – to, co agent zwraca przez `create_draft`: subject, body,
   needs_human, staff_notes. Ten sam model generuje JSON Schema narzędzia
   (`DraftDecision.model_json_schema()`) – jedna definicja, zero duplikacji.
@@ -77,37 +88,18 @@ do zbudowania maila), ale `agent/` nigdy nie importuje z `mail_listener/` – lo
 
 ## Granice błędów (świadoma decyzja projektowa)
 
-`handle_new_mail` ma dwa różne poziomy obsługi błędów:
-
-1. **Na poziomie partii** (`select_folder`, `fetch_new`, `build_system_prompt`, `get_provider`)
-   – te wywołania dają identyczny wynik dla każdej wiadomości w partii, więc błąd przerywa
-   cały cykl, loguje i zwraca stan bez zmian. Następny cykl spróbuje od nowa.
-2. **Na poziomie pojedynczej wiadomości** (`run_agent`, walidacja `DraftDecision`,
-   `build_draft_mime`, `append_draft`) – błąd **zatrzymuje całą resztę partii**, a nie tylko
-   tę jedną wiadomość. To jest kluczowe dla poprawności śledzenia UID: gdybyśmy pominęli
-   nieudaną wiadomość i poszli dalej, punkt startowy przesunąłby się ZA nią i nigdy by nie
-   wróciła do przetworzenia. Zatrzymanie na pierwszej usterce gwarantuje, że następny cykl
-   zacznie dokładnie od tej samej wiadomości.
-
-## Śledzenie UID – "od teraz", nie "wszystko nieprzeczytane"
-
-Pierwsza wersja harnessu używała `SEARCH UNSEEN` (flaga `\Seen`). Dwa problemy:
-
-- Konto z zaległością 5000+ nieprzeczytanych maili dostałoby 5000+ wywołań modelu i 5000+
-  szkiców przy pierwszym starcie.
-- Jeśli człowiek przeczyta nowego maila w Thunderbirdzie przed cyklem harnessu, wiadomość
-  przestaje być `UNSEEN` i harness **zgubiłby ją na zawsze**, mimo że przyszła po starcie.
-
-Rozwiązanie: punkt startowy to numer UID, nie flaga. Przy pierwszym starcie (albo gdy
-serwer zmieni `UIDVALIDITY` – rzadkie, ale oznacza, że stare UID-y są już nieaktualne)
-harness zapamiętuje aktualny najwyższy UID i **nic nie przetwarza** – to jest "teraz".
-Każdy kolejny cykl pyta tylko o `UID > ostatni_zapamiętany`, niezależnie od flagi `\Seen`.
+W przeciwieństwie do wcześniejszej wersji z wsadowym watcherem IMAP, jedno żądanie HTTP = jedna
+wiadomość = jeden niezależny wynik. Nie ma pojęcia "partii" ani punktu startowego (UID) do
+pilnowania – błąd w jednym żądaniu (parsowanie, model, zapis do IMAP) kończy się po prostu
+odpowiedzią `500` z opisem błędu; kolejne kliknięcia przycisku są całkowicie niezależne.
 
 ## Jak to rozszerzyć
 
 - **Nowy dostawca AI** (np. OpenAI): nowa klasa w `agent/providers/`, implementująca
   `BaseProvider` (`start_conversation`, `step`, `tool_result_messages`), wpis w rejestrze
-  `agent/providers/__init__.py`. Zero zmian w `agent_loop.py` czy `watcher.py`.
+  `agent/providers/__init__.py`. Zero zmian w `agent_loop.py` czy `api/server.py`.
 - **Nowe narzędzie dla agenta** (np. `check_print_file` dla załączników): dodać `ToolSpec`
   do listy przekazywanej w `run_agent(..., tools=[...])` i funkcję wykonawczą do
   `executors={...}` – pętla już to obsługuje (patrz `agent_loop.py`).
+- **Powrót do automatycznego obserwowania skrzynki**: poprzednia wersja (`mail_listener/watcher.py`
+  + `state.py`, IDLE/poll + śledzenie UID) jest w historii gita – `git log --all -- harness/src/mail_listener/watcher.py`.

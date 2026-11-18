@@ -26,41 +26,34 @@ def env(**overrides) -> dict:
 def test_from_env_happy_path_full():
     cfg = Config.from_env(env(
         IMAP_PORT="143", IMAP_USE_SSL="false",
-        IMAP_INBOX_FOLDER="Odebrane", IMAP_DRAFTS_FOLDER="Szkice",
-        DETECTION_MODE="poll", POLL_INTERVAL_SECONDS="30",
-        USE_ODPOWIEDZI_SKILL="false",
+        IMAP_DRAFTS_FOLDER="Szkice",
         AI_PROVIDER="claude", AI_MODEL="claude-sonnet-5-5", AI_MAX_TOKENS="500",
-        STATE_FILE="/tmp/state.json", FROM_ADDRESS="info@example.com",
+        FROM_ADDRESS="info@example.com",
+        API_HOST="0.0.0.0", API_PORT="9000",
     ))
     assert cfg.imap_host == "imap.example.com"
     assert cfg.imap_port == 143
     assert cfg.imap_use_ssl is False
-    assert cfg.inbox_folder == "Odebrane"
     assert cfg.drafts_folder == "Szkice"
-    assert cfg.detection_mode == "poll"
-    assert cfg.poll_interval_seconds == 30
-    assert cfg.use_skill is False
     assert cfg.ai_provider == "claude"
     assert cfg.ai_model == "claude-sonnet-5-5"
     assert cfg.ai_max_tokens == 500
-    assert cfg.state_file == "/tmp/state.json"
     assert cfg.from_address == "info@example.com"
+    assert cfg.api_host == "0.0.0.0"
+    assert cfg.api_port == 9000
 
 
 def test_from_env_happy_path_defaults():
     cfg = Config.from_env(env())
     assert cfg.imap_port == 993
     assert cfg.imap_use_ssl is True
-    assert cfg.inbox_folder == "INBOX"
     assert cfg.drafts_folder == "Drafts"
-    assert cfg.detection_mode == "idle"
-    assert cfg.poll_interval_seconds == 60
-    assert cfg.use_skill is True
     assert cfg.ai_provider == "claude"
     assert cfg.ai_model == "claude-sonnet-5-5"
     assert cfg.ai_max_tokens == 3000
-    assert cfg.state_file == "/data/state.json"
     assert cfg.from_address == REQUIRED["IMAP_USER"]
+    assert cfg.api_host == "127.0.0.1"
+    assert cfg.api_port == 8765
 
 
 @pytest.mark.parametrize("missing", ["IMAP_HOST", "IMAP_USER", "IMAP_PASSWORD", "AI_API_KEY"])
@@ -100,25 +93,15 @@ def test_from_env_non_positive_imap_port_raises(raw):
 
 
 @pytest.mark.parametrize("raw", ["0", "-5", "abc"])
-def test_from_env_bad_poll_interval_raises(raw):
+def test_from_env_bad_api_port_raises(raw):
     with pytest.raises(ConfigError):
-        Config.from_env(env(POLL_INTERVAL_SECONDS=raw))
+        Config.from_env(env(API_PORT=raw))
 
 
 @pytest.mark.parametrize("raw", ["0", "-100", "abc"])
 def test_from_env_bad_max_tokens_raises(raw):
     with pytest.raises(ConfigError):
         Config.from_env(env(AI_MAX_TOKENS=raw))
-
-
-def test_from_env_bad_detection_mode_raises():
-    with pytest.raises(ConfigError):
-        Config.from_env(env(DETECTION_MODE="sometimes"))
-
-
-def test_from_env_detection_mode_case_insensitive():
-    cfg = Config.from_env(env(DETECTION_MODE="IDLE"))
-    assert cfg.detection_mode == "idle"
 
 
 def test_from_env_bad_ai_provider_raises():

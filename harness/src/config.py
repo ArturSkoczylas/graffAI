@@ -5,7 +5,6 @@ from typing import Mapping, Optional
 from pydantic import BaseModel, ConfigDict, model_validator
 
 _VALID_PROVIDERS = {"claude", "openai"}
-_VALID_DETECTION = {"idle", "poll"}
 _TRUE_VALUES = {"1", "true", "yes", "tak"}
 
 
@@ -21,27 +20,20 @@ class Config(BaseModel):
     imap_user: str
     imap_password: str
     imap_use_ssl: bool
-    inbox_folder: str
     drafts_folder: str
-    detection_mode: str
-    poll_interval_seconds: int
-    use_skill: bool
     ai_provider: str
     ai_model: str
     ai_api_key: str
     ai_max_tokens: int
-    state_file: str
     from_address: str
+    api_host: str
+    api_port: int
 
     @model_validator(mode="after")
     def _check_provider_requirements(self) -> "Config":
         if self.ai_provider not in _VALID_PROVIDERS:
             raise ConfigError(
                 f"AI_PROVIDER musi być 'claude' albo 'openai', dostałem: {self.ai_provider!r}"
-            )
-        if self.detection_mode not in _VALID_DETECTION:
-            raise ConfigError(
-                f"DETECTION_MODE musi być 'idle' albo 'poll', dostałem: {self.detection_mode!r}"
             )
         return self
 
@@ -90,17 +82,14 @@ class Config(BaseModel):
                 imap_user=imap_user,
                 imap_password=imap_password,
                 imap_use_ssl=to_bool("IMAP_USE_SSL", True),
-                inbox_folder=(env.get("IMAP_INBOX_FOLDER") or "INBOX").strip(),
                 drafts_folder=(env.get("IMAP_DRAFTS_FOLDER") or "Drafts").strip(),
-                detection_mode=(env.get("DETECTION_MODE") or "idle").strip().lower(),
-                poll_interval_seconds=to_int("POLL_INTERVAL_SECONDS", 60),
-                use_skill=to_bool("USE_ODPOWIEDZI_SKILL", True),
                 ai_provider=ai_provider,
                 ai_model=ai_model,
                 ai_api_key=ai_api_key,
                 ai_max_tokens=to_int("AI_MAX_TOKENS", 3000),
-                state_file=(env.get("STATE_FILE") or "/data/state.json").strip(),
                 from_address=(env.get("FROM_ADDRESS") or imap_user).strip(),
+                api_host=(env.get("API_HOST") or "127.0.0.1").strip(),
+                api_port=to_int("API_PORT", 8765),
             )
         except ConfigError:
             raise

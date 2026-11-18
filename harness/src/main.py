@@ -4,8 +4,8 @@ import logging
 import os
 import sys
 
+from .api import server
 from .config import Config, ConfigError
-from .mail_listener import watcher
 
 
 def main() -> int:
@@ -15,7 +15,7 @@ def main() -> int:
     except ConfigError as exc:
         print(f"Błąd konfiguracji: {exc}", file=sys.stderr)
         return 1
-    watcher.run(cfg)
+    server.run(cfg)
     return 0
 
 

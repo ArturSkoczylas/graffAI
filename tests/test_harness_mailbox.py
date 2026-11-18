@@ -100,6 +100,47 @@ def test_extract_plain_text_nested_multipart_finds_plain():
     assert "tekst wewnątrz" in M.extract_plain_text(outer)
 
 
+# --------------------------------------------------------------------------- extract_attachments
+def test_extract_attachments_happy_path():
+    attachments = M.extract_attachments(_multipart(plain="treść", attachment=True))
+    assert [a.filename for a in attachments] == ["projekt.pdf"]
+    assert attachments[0].content_type == "application/pdf"
+    assert attachments[0].data == b"%PDF-1.7 fake"
+
+
+def test_extract_attachments_no_attachment_returns_empty():
+    assert M.extract_attachments(_multipart(plain="treść")) == []
+
+
+def test_extract_attachments_plain_text_only_message_returns_empty():
+    msg = EmailMessage()
+    msg.set_content("bez multiparta")
+    assert M.extract_attachments(msg) == []
+
+
+def test_extract_attachments_multiple_attachments():
+    msg = _multipart(plain="treść", attachment=True)
+    msg.add_attachment(b"fake-jpeg", maintype="image", subtype="jpeg", filename="logo.jpg")
+    attachments = M.extract_attachments(msg)
+    assert sorted(a.filename for a in attachments) == ["logo.jpg", "projekt.pdf"]
+
+
+def test_extract_attachments_ignores_inline_html_part():
+    msg = _multipart(plain="treść", html="<p>html</p>", attachment=True)
+    attachments = M.extract_attachments(msg)
+    assert [a.filename for a in attachments] == ["projekt.pdf"]
+
+
+def test_extract_attachments_empty_payload_skipped():
+    msg = EmailMessage()
+    msg.set_content("treść")
+    msg.add_attachment(b"real", maintype="application", subtype="pdf", filename="a.pdf")
+    for part in msg.walk():
+        if part.get_filename() == "a.pdf":
+            part.set_payload(b"")
+    assert M.extract_attachments(msg) == []
+
+
 # --------------------------------------------------------------------------- reply_subject
 def test_reply_subject_happy_path():
     assert M.reply_subject("Zapytanie o ofertę") == "Re: Zapytanie o ofertę"
@@ -122,125 +163,6 @@ def test_reply_subject_fwd_gets_re_prepended():
 def test_reply_subject_long_subject_untouched_aside_from_prefix():
     long_subject = "x" * 500
     assert M.reply_subject(long_subject) == f"Re: {long_subject}"
-
-
-# --------------------------------------------------------------------------- select_folder / fetch_new (fake client)
-class FakeImapClient:
-    def __init__(self, raw_by_uid, uid_validity=7, uid_next=None):
-        self._raw_by_uid = raw_by_uid
-        self._uid_validity = uid_validity
-        self._uid_next = uid_next if uid_next is not None else (max(raw_by_uid, default=0) + 1)
-        self.selected_folder = None
-        self.fetch_called = False
-        self.search_criteria = None
-
-    def select_folder(self, folder):
-        self.selected_folder = folder
-        return {b"UIDVALIDITY": self._uid_validity, b"UIDNEXT": self._uid_next}
-
-    def search(self, criteria):
-        self.search_criteria = criteria
-        _, rng = criteria
-        lo = int(rng.split(":")[0])
-        return [uid for uid in self._raw_by_uid if uid >= lo]
-
-    def fetch(self, uids, parts):
-        self.fetch_called = True
-        return {uid: {b"RFC822": self._raw_by_uid[uid]} for uid in uids}
-
-
-def _raw(subject="Pytanie", message_id="<a@x>", body="treść"):
-    msg = EmailMessage()
-    msg["From"] = "klient@example.com"
-    msg["Subject"] = subject
-    if message_id is not None:
-        msg["Message-ID"] = message_id
-    msg.set_content(body)
-    return msg.as_bytes()
-
-
-def test_select_folder_returns_folder_info():
-    client = FakeImapClient({}, uid_validity=42, uid_next=7)
-    info = M.select_folder(client, "INBOX")
-    assert client.selected_folder == "INBOX"
-    assert info.uid_validity == 42
-    assert info.uid_next == 7
-
-
-def test_fetch_new_happy_two_messages():
-    client = FakeImapClient({1: _raw(message_id="<1@x>", body="pierwsza"),
-                              2: _raw(message_id="<2@x>", body="druga")})
-    result = M.fetch_new(client, since_uid=0)
-    assert [m.uid for m in result] == [1, 2]
-    assert [m.message_id for m in result] == ["<1@x>", "<2@x>"]
-    assert result[0].plain_text.strip() == "pierwsza"
-
-
-def test_fetch_new_only_returns_uids_above_since():
-    client = FakeImapClient({1: _raw(message_id="<1@x>"), 2: _raw(message_id="<2@x>"),
-                              3: _raw(message_id="<3@x>")})
-    result = M.fetch_new(client, since_uid=1)
-    assert [m.uid for m in result] == [2, 3]
-
-
-def test_fetch_new_empty_search_skips_fetch():
-    client = FakeImapClient({})
-    result = M.fetch_new(client, since_uid=0)
-    assert result == []
-    assert client.fetch_called is False
-
-
-def test_fetch_new_boundary_uid_equal_to_since_is_excluded():
-    # serwer może na granicy zakresu "n:*" dociągnąć też UID == since_uid; filtrujemy to.
-    client = FakeImapClient({5: _raw(message_id="<5@x>"), 6: _raw(message_id="<6@x>")})
-    client.search = lambda criteria: [5, 6]  # symulacja serwera zwracającego też granicę
-    result = M.fetch_new(client, since_uid=5)
-    assert [m.uid for m in result] == [6]
-
-
-def test_fetch_new_results_sorted_by_uid():
-    client = FakeImapClient({3: _raw(message_id="<3@x>"), 1: _raw(message_id="<1@x>"),
-                              2: _raw(message_id="<2@x>")})
-    result = M.fetch_new(client, since_uid=0)
-    assert [m.uid for m in result] == [1, 2, 3]
-
-
-def test_fetch_new_missing_message_id_gets_placeholder():
-    client = FakeImapClient({1: _raw(message_id=None)})
-    result = M.fetch_new(client, since_uid=0)
-    assert result[0].message_id.startswith("<no-id-")
-
-
-def test_fetch_new_truncated_bytes_does_not_crash():
-    full = _raw(body="treść" * 50)
-    truncated = full[: len(full) // 2]
-    client = FakeImapClient({1: truncated})
-    result = M.fetch_new(client, since_uid=0)
-    assert len(result) == 1
-
-
-def test_fetch_new_extract_plain_text_returns_empty(monkeypatch):
-    monkeypatch.setattr(M, "extract_plain_text", lambda msg: "")
-    client = FakeImapClient({1: _raw()})
-    result = M.fetch_new(client, since_uid=0)
-    assert result[0].plain_text == ""
-
-
-def test_fetch_new_extract_plain_text_raises_for_one_message_continues(monkeypatch):
-    calls = {"n": 0}
-
-    def flaky(msg):
-        calls["n"] += 1
-        if calls["n"] == 1:
-            raise RuntimeError("uszkodzony mail")
-        return "ok"
-
-    monkeypatch.setattr(M, "extract_plain_text", flaky)
-    client = FakeImapClient({1: _raw(message_id="<1@x>"), 2: _raw(message_id="<2@x>")})
-    result = M.fetch_new(client, since_uid=0)
-    assert len(result) == 2
-    assert result[0].plain_text == ""
-    assert result[1].plain_text == "ok"
 
 
 # --------------------------------------------------------------------------- build_draft_mime
@@ -325,10 +247,10 @@ def test_build_draft_mime_propagates_reply_subject_failure(monkeypatch):
 def _cfg(**overrides):
     base = dict(
         imap_host="imap.example.com", imap_port=993, imap_user="biuro@example.com",
-        imap_password="tajne", imap_use_ssl=True, inbox_folder="INBOX", drafts_folder="Drafts",
-        detection_mode="idle", poll_interval_seconds=60, use_skill=True,
+        imap_password="tajne", imap_use_ssl=True, drafts_folder="Drafts",
         ai_provider="claude", ai_model="claude-sonnet-5-5", ai_api_key="sk-test",
-        ai_max_tokens=3000, state_file="/tmp/state.json", from_address="biuro@example.com",
+        ai_max_tokens=3000, from_address="biuro@example.com",
+        api_host="127.0.0.1", api_port=8765,
     )
     base.update(overrides)
     return Config(**base)

@@ -1,4 +1,4 @@
-"""Testy harness/main.py – wejście procesu: budowa Config + uruchomienie watchera."""
+"""Testy harness/main.py – wejście procesu: budowa Config + uruchomienie serwera HTTP."""
 import sys
 from pathlib import Path
 
@@ -14,11 +14,11 @@ REQUIRED_ENV = {
 }
 
 
-def test_main_happy_path_runs_watcher(monkeypatch):
+def test_main_happy_path_runs_server(monkeypatch):
     for key, value in REQUIRED_ENV.items():
         monkeypatch.setenv(key, value)
     calls = []
-    monkeypatch.setattr(MAIN.watcher, "run", lambda cfg: calls.append(cfg))
+    monkeypatch.setattr(MAIN.server, "run", lambda cfg: calls.append(cfg))
 
     exit_code = MAIN.main()
 
@@ -32,8 +32,8 @@ def test_main_missing_required_env_returns_nonzero_without_traceback(monkeypatch
     monkeypatch.delenv("IMAP_USER", raising=False)
     monkeypatch.delenv("IMAP_PASSWORD", raising=False)
     monkeypatch.delenv("AI_API_KEY", raising=False)
-    monkeypatch.setattr(MAIN.watcher, "run", lambda cfg: (_ for _ in ()).throw(
-        AssertionError("watcher.run nie powinien być wywołany")
+    monkeypatch.setattr(MAIN.server, "run", lambda cfg: (_ for _ in ()).throw(
+        AssertionError("server.run nie powinien być wywołany")
     ))
 
     exit_code = MAIN.main()

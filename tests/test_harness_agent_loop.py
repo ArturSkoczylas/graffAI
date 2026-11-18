@@ -1,4 +1,5 @@
 """Testy harness/agent_loop.py – generyczna pętla wywołań narzędzi, niezależna od dostawcy."""
+import logging
 import sys
 from pathlib import Path
 
@@ -167,3 +168,66 @@ def test_run_agent_tool_result_messages_error_propagates():
             provider, "sys", "user", tools=[], stop_tool="create_draft",
             executors={"check_print_file": lambda call: "ok"},
         )
+
+
+# --------------------------------------------------------------------------- logging
+def test_run_agent_logs_step_summary_per_turn(caplog):
+    caplog.set_level(logging.INFO, logger="harness.agent_loop")
+    provider = FakeProvider([
+        _reply([_call("check_print_file")], text="sprawdzam plik"),
+        _reply([_call("create_draft")]),
+    ])
+    run_agent(
+        provider, "sys", "user", tools=[], stop_tool="create_draft",
+        executors={"check_print_file": lambda call: "ok"},
+    )
+    assert "tura 1/" in caplog.text
+    assert "check_print_file" in caplog.text
+    assert "sprawdzam plik" in caplog.text
+    assert "tura 2/" in caplog.text
+
+
+def test_run_agent_logs_tool_execution_result_and_status(caplog):
+    caplog.set_level(logging.INFO, logger="harness.agent_loop")
+    provider = FakeProvider([
+        _reply([_call("check_print_file")]),
+        _reply([_call("create_draft")]),
+    ])
+    run_agent(
+        provider, "sys", "user", tools=[], stop_tool="create_draft",
+        executors={"check_print_file": lambda call: "spady OK"},
+    )
+    assert "spady OK" in caplog.text
+    assert "OK" in caplog.text
+
+
+def test_run_agent_logs_tool_failure_as_blad(caplog):
+    caplog.set_level(logging.INFO, logger="harness.agent_loop")
+    provider = FakeProvider([
+        _reply([_call("check_print_file")]),
+        _reply([_call("create_draft")]),
+    ])
+    run_agent(
+        provider, "sys", "user", tools=[], stop_tool="create_draft",
+        executors={"check_print_file": lambda call: (_ for _ in ()).throw(RuntimeError("zły plik"))},
+    )
+    assert "BŁĄD" in caplog.text
+    assert "zły plik" in caplog.text
+
+
+def test_run_agent_logs_stop_tool_call(caplog):
+    caplog.set_level(logging.INFO, logger="harness.agent_loop")
+    provider = FakeProvider([_reply([_call("create_draft", id_="call_99")])])
+    run_agent(provider, "sys", "user", tools=[], stop_tool="create_draft")
+    assert "create_draft(id=call_99)" in caplog.text
+    assert "stop_tool" in caplog.text
+
+
+def test_run_agent_logs_truncate_long_text(caplog):
+    caplog.set_level(logging.INFO, logger="harness.agent_loop")
+    provider = FakeProvider([
+        _reply([_call("create_draft")], text="x" * 1000),
+    ])
+    run_agent(provider, "sys", "user", tools=[], stop_tool="create_draft")
+    assert "x" * 301 not in caplog.text
+    assert "…" in caplog.text

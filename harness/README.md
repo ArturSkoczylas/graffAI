@@ -1,7 +1,9 @@
 # harness
 
-Runtime, który pilnuje skrzynki IMAP i dla każdej nowej wiadomości przygotowuje **szkic**
-odpowiedzi – zapisany w folderze Szkice tej samej skrzynki, nigdy nie wysyła niczego sam.
+Lokalny serwer HTTP, który na żądanie (`POST /draft`, surowy e-mail) przygotowuje **szkic**
+odpowiedzi i zapisuje go w folderze Szkice tej samej skrzynki IMAP – nigdy nie wysyła niczego
+sam. Wywołującym jest przycisk w rozszerzeniu Thunderbirda (`thunderbird-extension/`) – klik na
+otwartej wiadomości wysyła jej surową treść (`messenger.messages.getRaw()`) do tego serwera.
 Opis wewnętrznej struktury i przepływu danych: [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Bezpieczeństwo
@@ -10,11 +12,18 @@ Opis wewnętrznej struktury i przepływu danych: [ARCHITECTURE.md](ARCHITECTURE.
   flaga `\Draft`), pracownik przegląda i wysyła ręcznie.
 - Treści klienta nigdy nie trafiają do kodu jako polecenia – prompt wyraźnie oznacza je
   jako dane (`<wiadomosc>...</wiadomosc>`).
-- Jeden mail = jeden Message-ID w pliku stanu (`STATE_FILE`, domyślnie `/data/state.json`)
-  – restart kontenera nie tworzy duplikatów szkiców dla już obsłużonej poczty.
-- **Działa tylko "od teraz".** Przy pierwszym starcie harness zapamiętuje aktualny
-  najwyższy UID skrzynki i nie przetwarza istniejącej zawartości (nawet 5000+
-  nieprzeczytanych maili) – szczegóły w [ARCHITECTURE.md](ARCHITECTURE.md).
+- Agent może uruchamiać kod (`run_skill_script`), ale tylko konkretne, zaszyte w kodzie skrypty
+  skilli (`wycena.py`, `canva_link.py` – lista w `harness/src/agent/run_script.py`), przez
+  `subprocess.run([...], shell=False)` – argumenty idą jako argv, nie przez shell, więc nie ma
+  wstrzyknięcia komend. Model nie może wskazać dowolnej ścieżki ani uruchomić czegoś poza tą
+  listą. `wycena.py` woła prawdziwe API wycen (`GRAFFAI_WYCENA_URL`) – to realny efekt
+  zewnętrzny (zapytanie o cenę), nie tylko odczyt.
+- Nic na `POST /draft` nie wymaga uwierzytelniania – bezpieczeństwo opiera się wyłącznie na
+  tym, że port nie jest wystawiony na sieć. W Dockerze to robi `ports: ["127.0.0.1:8765:8765"]`
+  w `docker-compose.yml` (publikuje port tylko na loopbacku hosta) – `API_HOST` w kontenerze
+  musi mieć wartość `0.0.0.0` (Docker przekazuje ruch na interfejs kontenera, nie na jego
+  własny loopback), to nie jest dziura, to jest wymagane do działania. **Jeśli uruchamiasz
+  `main.py` bez Dockera, zostaw `API_HOST=127.0.0.1` (domyślne) – wtedy to on jest granicą.**
 
 ## Szybki start
 
@@ -25,6 +34,9 @@ docker compose up --build -d
 docker compose logs -f
 ```
 
+Potem zainstaluj rozszerzenie Thunderbirda – patrz
+[`../thunderbird-extension/README.md`](../thunderbird-extension/README.md).
+
 ## Zmienne środowiskowe
 
 | Zmienna | Wymagana | Domyślna | Opis |
@@ -34,17 +46,14 @@ docker compose logs -f
 | `IMAP_USER` | ✅ | – | Pełny adres e-mail |
 | `IMAP_PASSWORD` | ✅ | – | Hasło zwykłe albo hasło aplikacji (patrz niżej) |
 | `IMAP_USE_SSL` | | `true` | |
-| `IMAP_INBOX_FOLDER` | | `INBOX` | |
 | `IMAP_DRAFTS_FOLDER` | | `Drafts` | **Prawie nigdy nie jest to poprawna wartość dla Gmaila** – patrz niżej |
-| `DETECTION_MODE` | | `idle` | `idle` (push, natychmiastowe) albo `poll` |
-| `POLL_INTERVAL_SECONDS` | | `60` | tylko dla `DETECTION_MODE=poll` |
-| `USE_ODPOWIEDZI_SKILL` | | `true` | `false` = ogólny szkic, bez szablonów Drukarni Gutenberg |
+| `API_HOST` | | `127.0.0.1` | Zostaw tak jak jest – patrz sekcja Bezpieczeństwo |
+| `API_PORT` | | `8765` | Jeśli zmienisz, zaktualizuj też `ports:` w `docker-compose.yml` i adres w ustawieniach rozszerzenia |
 | `AI_PROVIDER` | | `claude` | obecnie tylko `claude` zaimplementowany |
 | `AI_MODEL` | | `claude-sonnet-5-5` | |
 | `AI_API_KEY` | ✅ | – | klucz z console.anthropic.com |
 | `AI_MAX_TOKENS` | | `3000` | |
 | `FROM_ADDRESS` | | = `IMAP_USER` | ustaw, jeśli odpowiedzi mają wychodzić z innego adresu/aliasu |
-| `STATE_FILE` | | `/data/state.json` | nie zmieniaj w Dockerze – to ścieżka na zamontowanym wolumenie |
 
 ## Konfiguracja dla popularnych dostawców
 
@@ -120,20 +129,20 @@ Szukaj folderu z flagą `\Drafts` w wyniku – to jest właściwa wartość dla
 
 ## Testowanie
 
-1. `docker compose logs -f` – sprawdź, czy połączenie i logowanie przeszły bez błędów.
-2. Wyślij testowego maila na obserwowany adres, najlepiej z innego konta.
-3. W logach powinno się pojawić przetworzenie nowej wiadomości (UID, Message-ID).
-4. Sprawdź folder Szkiców w Thunderbirdzie – powinien tam być nowy szkic z banerem
+1. `docker compose logs -f` – sprawdź, czy serwer wystartował i nasłuchuje na `API_PORT`.
+2. `curl -X POST localhost:8765/draft --data-binary @sample.eml` z przykładowym plikiem `.eml`
+   – albo kliknij przycisk w Thunderbirdzie na prawdziwej wiadomości.
+3. Sprawdź folder Szkiców w Thunderbirdzie – powinien tam być nowy szkic z banerem
    `[SZKIC WYGENEROWANY PRZEZ AI — SPRAWDŹ PRZED WYSŁANIEM]` na początku.
 
 ## Rozwiązywanie problemów
 
-| Błąd w logach | Przyczyna | Rozwiązanie |
+| Błąd w logach / odpowiedzi | Przyczyna | Rozwiązanie |
 |---|---|---|
 | `[AUTHENTICATIONFAILED] Invalid credentials` | Zwykłe hasło konta tam, gdzie dostawca wymaga hasła aplikacji (Gmail: zawsze; Microsoft: zwykle) | Włącz 2FA i wygeneruj hasło aplikacji – patrz sekcja dostawcy wyżej |
 | `[TRYCREATE] Folder doesn't exist` przy zapisie szkicu | `IMAP_DRAFTS_FOLDER` nie zgadza się z rzeczywistą nazwą folderu | Wylistuj foldery (sekcja wyżej), ustaw poprawną wartość, `docker compose up -d --force-recreate` |
-| Harness łączy się, ale nigdy nic nie przetwarza | Normalne tuż po starcie – pierwszy cykl tylko ustawia punkt startowy "od teraz" i nie przetwarza niczego | Wyślij nowego maila *po* tym punkcie, poczekaj na kolejny cykl |
-| Nieudana wiadomość nie wraca, mimo poprawki configu | Punkt startowy (UID) nie przesuwa się za nieudaną wiadomość – powinna wrócić **następnym razem** automatycznie | Sprawdź, czy harness faktycznie się połączył po poprawce (restart kontenera) |
+| Przycisk w Thunderbirdzie nic nie robi / błąd sieci | Kontener nie działa albo `API_PORT` w rozszerzeniu nie zgadza się z `docker-compose.yml` | `docker compose ps`, sprawdź port w ustawieniach rozszerzenia |
+| Odpowiedź `500` z `/draft` | Zwykle błąd modelu albo IMAP przy zapisie – treść błędu jest w polu `message` odpowiedzi i w logach kontenera | `docker compose logs -f`, napraw przyczynę, kliknij przycisk jeszcze raz |
 
 ## Czego nie robi (jeszcze)
 
@@ -141,6 +150,8 @@ Szukaj folderu z flagą `\Drafts` w wyniku – to jest właściwa wartość dla
   `skills/margin-check` / `skills/pdf-check`, osobne narzędzie dla agenta.
 - Działa tylko z Claude (`AnthropicProvider`). `AI_PROVIDER=openai` jest rozpoznawane,
   ale zgłasza `NotImplementedError` – dodanie `OpenAIProvider` nie wymaga zmian
-  w `agent_loop.py` ani `watcher.py`, tylko nowej klasy w `harness/src/agent/providers/`.
+  w `agent_loop.py` ani `api/server.py`, tylko nowej klasy w `harness/src/agent/providers/`.
 - Loguje się tylko login+hasłem (IMAP Basic Auth) – żadnego OAuth2. To realnie wyklucza
   większość kont Microsoft 365 firmowych/szkolnych (patrz sekcja Microsoft wyżej).
+- Nie obserwuje skrzynki automatycznie – to świadoma zmiana względem wcześniejszej wersji
+  (IDLE/poll watcher); każdy szkic powstaje tylko na kliknięcie przycisku w Thunderbirdzie.

@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <title>Szkic AI – ustawienia</title>
+  <style>
+    body { font-family: sans-serif; padding: 1em; }
+    label { display: block; margin-bottom: 0.3em; }
+    input { width: 320px; padding: 0.3em; }
+    #status { color: #2e7d32; }
+  </style>
+</head>
+<body>
+  <form id="form">
+    <label for="url">Adres backendu (harness, zwykle lokalny):</label>
+    <input type="url" id="url" placeholder="http://127.0.0.1:8765/draft">
+    <button type="submit">Zapisz</button>
+    <p id="status"></p>
+  </form>
+  <script src="options.js"></script>
+</body>
+</html>

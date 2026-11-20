@@ -1,10 +1,10 @@
-"""Wspólne fixtures: błędne dane wejściowe dla modułów pdf-check."""
+"""Shared fixtures: invalid input data for the pdf-check modules."""
 import io
 
 import pytest
 from pypdf import PdfWriter
 
-# Argumenty, które w ogóle nie są ścieżką
+# Arguments that are not a path at all
 NOT_A_PATH = [None, 123, 3.5, True, b"plik.pdf", ["plik.pdf"], {"path": "plik.pdf"}, object()]
 
 
@@ -20,7 +20,7 @@ def _pdf_bytes(**encrypt) -> bytes:
 
 @pytest.fixture
 def password_pdf(tmp_path):
-    """PDF otwierany dopiero po podaniu hasła."""
+    """PDF that only opens once a password is given."""
     path = tmp_path / "haslo.pdf"
     path.write_bytes(_pdf_bytes(user_password="tajne"))
     return path
@@ -28,7 +28,7 @@ def password_pdf(tmp_path):
 
 @pytest.fixture
 def owner_locked_pdf(tmp_path):
-    """PDF z blokadą edycji (hasło właściciela) – otwiera się bez hasła."""
+    """PDF with an edit lock (owner password) - opens without a password."""
     path = tmp_path / "blokada.pdf"
     path.write_bytes(_pdf_bytes(user_password="", owner_password="wlasciciel"))
     return path
@@ -36,7 +36,7 @@ def owner_locked_pdf(tmp_path):
 
 @pytest.fixture
 def truncated_pdf(tmp_path):
-    """PDF ucięty w połowie, np. przerwane pobieranie załącznika."""
+    """PDF truncated halfway through, e.g. an interrupted attachment download."""
     data = _pdf_bytes()
     path = tmp_path / "uciety.pdf"
     path.write_bytes(data[: len(data) // 2])
@@ -45,7 +45,7 @@ def truncated_pdf(tmp_path):
 
 @pytest.fixture
 def not_pdf_files(tmp_path):
-    """Pliki z rozszerzeniem .pdf, które PDF-em nie są."""
+    """Files with a .pdf extension that are not actually a PDF."""
     files = {
         "pusty": b"",
         "jpg": b"\xff\xd8\xff\xe0\x00\x10JFIF to jest JPG",

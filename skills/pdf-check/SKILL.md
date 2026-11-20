@@ -38,6 +38,10 @@ Dla każdej strony skrypt:
   dodatkowe (`pdf_colors.py`); znaczniki cięcia z Canvy (kolor „All”) nie są liczone,
 - rasteryzuje stronę w obszarze netto + spad (bez znaczników) i sprawdza spady, strefę 3 mm,
   ramki i bigi tym samym silnikiem co pliki graficzne (`pdf_margins.py`),
+- liczy efektywne DPI każdego osadzonego obrazu – rozmiar w pikselach podzielony przez
+  rozmiar, w jakim obraz jest narysowany na stronie, czyli CTM w momencie rysowania
+  (`pdf_images.py`); metadane DPI z pliku obrazu nie mają znaczenia, liczy się tylko
+  rzeczywista wielkość na stronie,
 - zapisuje podgląd `<nazwa pliku>_strona_N_podglad.png`: czerwona = cięcie, zielona = strefa 3 mm,
   pomarańczowa = 5 mm, niebieska = big; problemy w ramkach.
 
@@ -60,6 +64,9 @@ Kody wyjścia: 0 OK, 1 ostrzeżenia lub do weryfikacji, 2 błędy, 3 nie da się
 | `SPOT_COLOR` | kolor dodatkowy (np. Gold) | ustalić, czy to warstwa do uszlachetnienia |
 | `RGB` | zdjęcia/grafika w RGB | INFO; przy Canvie: eksport „PDF do druku” (CMYK) |
 | `TRIMBOX_MISSING` | brak TrimBox, przyjęto spad z rozmiaru | zwykle OK, bez informowania klienta |
+| `DPI_TOO_LOW` | obraz narysowany dużo większy niż jego rozdzielczość | poprosić o zdjęcie w lepszej rozdzielczości albo zmniejszyć wydruk |
+| `DPI_LOW` | obraz nieco poniżej wymaganego DPI | ostrzeżenie – wydruk może być lekko mniej ostry |
+| `DPI_OK` | rozdzielczość obrazu wystarczająca | INFO, nie trzeba nic mówić klientowi |
 
 ## Krok 3. Zweryfikuj wzrokowo i odpowiedz klientowi
 
@@ -77,12 +84,12 @@ Kody wyjścia: 0 OK, 1 ostrzeżenia lub do weryfikacji, 2 błędy, 3 nie da się
 
 ## Ograniczenia – uwzględnij w ocenie
 
-- Odległość elementu od cięcia jest mierzona z dokładnością ok. 1 piksela analizy
-  (przy domyślnych 200 dpi ok. 0,15 mm). Element tuż przy granicy 3 mm (2,9–3,0 mm)
-  może przejść bez ostrzeżenia – przy takich miejscach oceń podgląd sam.
-- Rozdzielczości zdjęć w PDF skrypt jeszcze nie sprawdza – `render_dpi` to rozdzielczość
-  analizy, nie zdjęć. Przy wizytówkach (600 dpi) i zdjęciach zapytaj o źródło, jeśli podgląd
-  wygląda nieostro.
+- **Tekst 2,5–3 mm od cięcia może nie zostać wykryty**, a odległość poniżej ok. 1,5 mm
+  jest podawana jako ~0,4 mm. Przy elementach blisko krawędzi oceń podgląd sam.
+- Rozdzielczość obrazów liczona jest z rozmiaru narysowanego na stronie (CTM), nie z
+  metadanych pliku – to jest poprawne podejście, ale nie wykrywa obrazów ukrytych pod
+  innymi elementami ani wzorów (pattern) z obrazem w środku. `render_dpi` to osobna,
+  niezależna rozdzielczość rasteryzacji do analizy marginesów, nie zdjęć.
 - Wzory (pattern) i przezroczystości nie są rozkładane na kolory – kod `COLOR_UNRECOGNISED`.
 - Analiza zakłada biały papier; przy papierach kolorowych i tonerach specjalnych wyniki
   traktuj orientacyjnie.

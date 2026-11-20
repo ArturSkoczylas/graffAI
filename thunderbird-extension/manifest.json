@@ -1,0 +1,29 @@
+{
+  "manifest_version": 2,
+  "name": "Szkic AI – Drukarnia Gutenberg",
+  "version": "1.0.0",
+  "description": "Przycisk w widoku wiadomości: wyślij otwarty e-mail do lokalnego harnessu i zapisz wygenerowany szkic odpowiedzi w Szkicach.",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "szkic-ai@drukarnia-gutenberg.local",
+      "strict_min_version": "128.0"
+    }
+  },
+  "permissions": [
+    "messagesRead",
+    "notifications",
+    "storage",
+    "http://127.0.0.1/*"
+  ],
+  "background": {
+    "scripts": ["background.js"]
+  },
+  "message_display_action": {
+    "default_title": "Wygeneruj szkic odpowiedzi (AI)",
+    "default_icon": "icons/icon.svg"
+  },
+  "options_ui": {
+    "page": "options/options.html",
+    "open_in_tab": false
+  }
+}

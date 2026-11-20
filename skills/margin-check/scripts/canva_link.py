@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
-"""Weryfikacja linków do projektów Canva przesyłanych do drukarni.
+"""Verification of Canva design links submitted to the print shop.
 
-Projektu Canva nie da się sprawdzić bezpośrednio z linku: strona wymaga
-zalogowania i jest renderowana w przeglądarce. Dlatego to narzędzie:
-  1. sprawdza, czy link jest właściwego typu (link do współpracy z edycją,
-     tak jak wymaga drukarnia),
-  2. wyciąga ID projektu (do ewentualnej automatyzacji przez Canva Connect API),
-  3. zwraca listę kontrolną dla klienta i kroki dla operatora: eksport
-     „PDF do druku” ze spadami -> sprawdzenie PDF (źródło 1) lub obrazu (źródło 2).
+A Canva design can't be checked directly from its link: the page requires
+login and is rendered in the browser. So this tool instead:
+  1. checks whether the link is of the right type (an edit-collaboration
+     link, as required by the print shop),
+  2. extracts the design ID (for possible automation via the Canva Connect API),
+  3. returns a checklist for the client and steps for the operator: export
+     "Print PDF" with bleed -> check the PDF (source 1) or image (source 2).
 
-Przykład:
+Example:
   python canva_link.py "https://www.canva.com/design/DAGxxxx/abc123/edit" --product ulotka_a5
 """
 from __future__ import annotations
@@ -88,7 +88,7 @@ def parse_canva_link(url: str) -> dict:
 
 
 def client_checklist(product: M.Product | None, rules: dict) -> list:
-    """Lista kontrolna dla klienta – na podstawie instrukcji drukarni dla projektów z Canvy."""
+    """Client checklist - based on the print shop's instructions for Canva designs."""
     b = M.fmt(rules["defaults"]["bleed_mm"])
     s = M.fmt(rules["defaults"]["safe_mm"])
     f = M.fmt(rules["defaults"]["frame_mm"])
@@ -131,16 +131,17 @@ OPERATOR_STEPS = [
 ]
 
 
-def export_via_api(design_id: str):  # pragma: no cover - zaślepka na przyszłość
-    """Miejsce na automatyczny eksport przez Canva Connect API (etap 2).
+def export_via_api(design_id: str):  # pragma: no cover - stub for future work
+    """Placeholder for automatic export via the Canva Connect API (stage 2).
 
-    API udostępnia asynchroniczne zadania eksportu (Create / Get design export job),
-    wymaga aplikacji z OAuth i dostępu autoryzowanego konta do projektu.
-    Dla drukarni istotne jest też API „Print partner” (tylko dla partnerów Canva, w wersji
-    preview). Przed implementacją sprawdź w dokumentacji, czy eksport PDF obsługuje spady:
+    The API offers asynchronous export jobs (Create / Get design export job),
+    requires an OAuth app and authorized access to the design's account.
+    Also relevant for the print shop is the "Print partner" API (Canva partners only,
+    currently in preview). Before implementing, check the docs for whether PDF export
+    supports bleed:
     https://www.canva.dev/docs/connect/api-reference/exports/
     """
-    raise NotImplementedError("Eksport przez Canva Connect API nie jest jeszcze zaimplementowany.")
+    raise NotImplementedError("Export via the Canva Connect API is not yet implemented.")
 
 
 def main(argv=None) -> int:

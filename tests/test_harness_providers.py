@@ -1,4 +1,4 @@
-"""Testy harness/providers/ – base.py, anthropic_provider.py, __init__.py (get_provider)."""
+"""Tests for harness/providers/ - base.py, anthropic_provider.py, __init__.py (get_provider)."""
 import sys
 from pathlib import Path
 from types import SimpleNamespace

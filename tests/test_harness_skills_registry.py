@@ -1,4 +1,4 @@
-"""Testy harness/skills_registry.py – odkrywanie skilli i wczytywanie ich na żądanie."""
+"""Tests for harness/skills_registry.py - discovering skills and loading them on demand."""
 import sys
 from pathlib import Path
 

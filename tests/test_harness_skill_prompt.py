@@ -1,4 +1,4 @@
-"""Testy harness/skill_prompt.py – DraftDecision, CREATE_DRAFT_TOOL, budowa promptów."""
+"""Tests for harness/skill_prompt.py - DraftDecision, CREATE_DRAFT_TOOL, prompt building."""
 import sys
 from pathlib import Path
 

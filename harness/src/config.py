@@ -33,7 +33,7 @@ class Config(BaseModel):
     def _check_provider_requirements(self) -> "Config":
         if self.ai_provider not in _VALID_PROVIDERS:
             raise ConfigError(
-                f"AI_PROVIDER musi być 'claude' albo 'openai', dostałem: {self.ai_provider!r}"
+                f"AI_PROVIDER must be 'claude' or 'openai', got: {self.ai_provider!r}"
             )
         return self
 
@@ -42,7 +42,7 @@ class Config(BaseModel):
         def require(key: str) -> str:
             value = (env.get(key) or "").strip()
             if not value:
-                raise ConfigError(f"Brak wymaganej zmiennej środowiskowej: {key}")
+                raise ConfigError(f"Missing required environment variable: {key}")
             return value
 
         def to_int(key: str, default: int) -> int:
@@ -52,9 +52,9 @@ class Config(BaseModel):
             try:
                 value = int(str(raw).strip())
             except ValueError:
-                raise ConfigError(f"{key} musi być liczbą całkowitą, dostałem: {raw!r}")
+                raise ConfigError(f"{key} must be an integer, got: {raw!r}")
             if value <= 0:
-                raise ConfigError(f"{key} musi być większe od zera, dostałem: {value}")
+                raise ConfigError(f"{key} must be greater than zero, got: {value}")
             return value
 
         def to_bool(key: str, default: bool) -> bool:
@@ -73,7 +73,7 @@ class Config(BaseModel):
         if ai_provider == "claude" and not ai_model:
             ai_model = "claude-sonnet-5-5"
         if not ai_model:
-            raise ConfigError("AI_MODEL wymagany dla AI_PROVIDER={ai_provider!r} (brak sensownej wartości domyślnej)".format(ai_provider=ai_provider))
+            raise ConfigError("AI_MODEL required for AI_PROVIDER={ai_provider!r} (no sensible default available)".format(ai_provider=ai_provider))
 
         try:
             return cls(

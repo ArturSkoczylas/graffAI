@@ -16,9 +16,9 @@ log = logging.getLogger("harness.api")
 
 
 def create_draft_from_raw_email(cfg: Config, raw: bytes) -> DraftDecision:
-    """Buduje szkic odpowiedzi z surowej wiadomości (RFC822, np. z messenger.messages.getRaw()
-    w rozszerzeniu Thunderbirda) i zapisuje go do Szkiców IMAP – ten sam mechanizm co watcher,
-    tylko wywołany na żądanie dla jednej, już posiadanej wiadomości."""
+    """Builds a reply draft from a raw message (RFC822, e.g. from messenger.messages.getRaw()
+    in the Thunderbird extension) and saves it to the IMAP Drafts folder - the same mechanism
+    as the watcher, just invoked on demand for a single, already-received message."""
     original = email.message_from_bytes(raw)
     plain_text = mailbox.extract_plain_text(original)
     attachments = mailbox.extract_attachments(original)
@@ -59,14 +59,14 @@ def create_draft_from_raw_email(cfg: Config, raw: bytes) -> DraftDecision:
 
 
 def handle_draft_request(cfg: Config, raw: bytes) -> tuple[int, dict[str, Any]]:
-    """Czysta funkcja: surowe bajty wiadomości -> (kod HTTP, treść JSON). Bez I/O sieciowego –
-    to pozwala testować obsługę żądania bez stawiania prawdziwego serwera."""
+    """Pure function: raw message bytes -> (HTTP status code, JSON body). No network I/O -
+    this allows testing request handling without standing up a real server."""
     if not raw:
         return 400, {"status": "error", "message": "Puste żądanie – brak treści wiadomości"}
     try:
         decision = create_draft_from_raw_email(cfg, raw)
     except Exception as exc:
-        log.exception("Nie udało się przygotować szkicu")
+        log.exception("Failed to prepare draft")
         return 500, {"status": "error", "message": str(exc)}
     return 200, {"status": "ok", "subject": decision.subject, "needs_human": decision.needs_human}
 
@@ -102,5 +102,5 @@ def make_server(cfg: Config) -> ThreadingHTTPServer:
 
 def run(cfg: Config) -> None:
     srv = make_server(cfg)
-    log.info("Serwer HTTP nasłuchuje na %s:%s (POST /draft)", cfg.api_host, cfg.api_port)
+    log.info("HTTP server listening on %s:%s (POST /draft)", cfg.api_host, cfg.api_port)
     srv.serve_forever()

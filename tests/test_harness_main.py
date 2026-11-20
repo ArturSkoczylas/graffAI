@@ -1,4 +1,4 @@
-"""Testy harness/main.py – wejście procesu: budowa Config + uruchomienie serwera HTTP."""
+"""Tests for harness/main.py - process entry point: building Config + starting the HTTP server."""
 import sys
 from pathlib import Path
 
@@ -33,11 +33,11 @@ def test_main_missing_required_env_returns_nonzero_without_traceback(monkeypatch
     monkeypatch.delenv("IMAP_PASSWORD", raising=False)
     monkeypatch.delenv("AI_API_KEY", raising=False)
     monkeypatch.setattr(MAIN.server, "run", lambda cfg: (_ for _ in ()).throw(
-        AssertionError("server.run nie powinien być wywołany")
+        AssertionError("server.run should not be called")
     ))
 
     exit_code = MAIN.main()
 
     assert exit_code == 1
     err = capsys.readouterr().err
-    assert "Błąd konfiguracji" in err
+    assert "Configuration error" in err

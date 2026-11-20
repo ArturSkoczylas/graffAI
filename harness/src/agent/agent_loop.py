@@ -28,7 +28,7 @@ def run_agent(
     stop_tool: str,
     executors: Optional[dict[str, Callable[[ToolCall], str]]] = None,
 ) -> ToolCall:
-    """Prowadzi pętlę wywołań narzędzi, aż model wywoła `stop_tool`; zwraca to wywołanie."""
+    """Drives the tool-call loop until the model calls `stop_tool`; returns that call."""
     executors = executors or {}
     messages = provider.start_conversation(system, user_message)
 
@@ -36,9 +36,9 @@ def run_agent(
         reply = provider.step(system, messages, tools)
         messages.append(reply.assistant_message)
         log.info(
-            "tura %d/%d: stop_reason=%s narzędzia=%s tekst=%r",
+            "turn %d/%d: stop_reason=%s tools=%s text=%r",
             turn, MAX_TURNS, reply.stop_reason,
-            [c.name for c in reply.tool_calls] or "(brak)", _preview(reply.text),
+            [c.name for c in reply.tool_calls] or "(none)", _preview(reply.text),
         )
 
         if not reply.tool_calls:
@@ -48,7 +48,7 @@ def run_agent(
 
         for call in reply.tool_calls:
             if call.name == stop_tool:
-                log.info("tura %d: %s(id=%s) – stop_tool, koniec pętli", turn, call.name, call.id)
+                log.info("turn %d: %s(id=%s) - stop_tool, loop finished", turn, call.name, call.id)
                 return call
 
             executor = executors.get(call.name)
@@ -57,11 +57,11 @@ def run_agent(
             else:
                 try:
                     result, is_error = executor(call), False
-                except Exception as exc:  # noqa: BLE001 - narzędzie może zawieść w dowolny sposób
+                except Exception as exc:  # noqa: BLE001 - a tool can fail in any way
                     result, is_error = f"Błąd narzędzia {call.name}: {exc}", True
             log.info(
-                "tura %d: %s(id=%s) -> %s: %r",
-                turn, call.name, call.id, "BŁĄD" if is_error else "OK", _preview(result),
+                "turn %d: %s(id=%s) -> %s: %r",
+                turn, call.name, call.id, "ERROR" if is_error else "OK", _preview(result),
             )
             messages.extend(provider.tool_result_messages(call, result, is_error))
 

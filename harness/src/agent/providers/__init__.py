@@ -13,9 +13,9 @@ def get_provider(name: str, *, model: str, api_key: str, **options):
         return _IMPLEMENTED[key](model=model, api_key=api_key, **options)
     if key in _KNOWN_NOT_IMPLEMENTED:
         raise NotImplementedError(
-            f"Dostawca {name!r} jest zaplanowany, ale jeszcze nie zaimplementowany."
+            f"Provider {name!r} is planned but not yet implemented."
         )
-    raise ValueError(f"Nieznany dostawca AI: {name!r}. Dostępni: {sorted(_IMPLEMENTED)}")
+    raise ValueError(f"Unknown AI provider: {name!r}. Available: {sorted(_IMPLEMENTED)}")
 
 
 __all__ = [

@@ -35,12 +35,12 @@ class BaseProvider(ABC):
 
     @abstractmethod
     def start_conversation(self, system: str, user_message: str) -> list[Any]:
-        """Zbuduj natywną listę wiadomości, od której zaczyna się rozmowa."""
+        """Build the native message list that starts the conversation."""
 
     @abstractmethod
     def step(self, system: str, messages: list[Any], tools: list[ToolSpec]) -> ProviderReply:
-        """Wykonaj jedno wywołanie modelu. Wywołujący dołącza reply.assistant_message do messages."""
+        """Make a single call to the model. The caller appends reply.assistant_message to messages."""
 
     @abstractmethod
     def tool_result_messages(self, tool_call: ToolCall, result: str, is_error: bool = False) -> list[Any]:
-        """Natywna wiadomość/wiadomości reprezentujące wynik narzędzia, do dołączenia do historii."""
+        """Native message(s) representing the tool result, to append to the history."""

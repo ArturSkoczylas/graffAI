@@ -14,8 +14,8 @@ from .skills_registry import SKILLS_ROOT
 TIMEOUT_SECONDS = 45
 MAX_OUTPUT_CHARS = 20_000
 
-# Tylko skrypty, które biorą zwykły tekst/URL jako wejście (nie binarny plik klienta – to
-# obsługuje check_print_file, bezpośrednio na bajtach załącznika, bez tego narzędzia).
+# Only scripts that take plain text/URL as input (not a binary client file - that's
+# handled by check_print_file, directly on the attachment bytes, without this tool).
 _ENTRYPOINTS: dict[str, list[str]] = {
     "wycena": ["wycena.py"],
     "margin-check": ["canva_link.py"],

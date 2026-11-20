@@ -1,4 +1,4 @@
-"""Testy harness/mailbox.py – parsowanie e-maili, budowa szkicu, IMAP (na fałszywym kliencie)."""
+"""Tests for harness/mailbox.py - email parsing, draft building, IMAP (against a fake client)."""
 import email as email_module
 import sys
 from email import policy
@@ -65,7 +65,7 @@ def test_extract_plain_text_attachment_only_returns_empty():
     msg["From"] = "a@b.com"
     msg.set_content("")
     msg.add_attachment(b"%PDF-1.7 fake", maintype="application", subtype="pdf", filename="projekt.pdf")
-    # usuwamy pustą część tekstową żeby zasymulować maila bez treści, tylko z załącznikiem
+    # remove the empty text part to simulate an email with no body, only an attachment
     for part in msg.walk():
         if part.get_content_type() == "text/plain":
             part.set_payload(None)
@@ -272,7 +272,7 @@ class FailedConnection:
         pass
 
     def login(self, user, password):
-        raise ConnectionError("złe dane logowania")
+        raise ConnectionError("invalid login credentials")
 
 
 def test_connect_success():
@@ -300,7 +300,7 @@ def test_connect_login_failure_propagates():
 
 def test_connect_factory_failure_propagates():
     def factory(host, port, ssl):
-        raise OSError("połączenie odrzucone")
+        raise OSError("connection refused")
 
     with pytest.raises(OSError):
         M.connect(_cfg(), client_factory=factory)

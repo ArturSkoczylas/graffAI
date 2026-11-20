@@ -1,4 +1,4 @@
-"""Testy harness/config.py – budowa i walidacja Config ze zmiennych środowiskowych."""
+"""Tests for harness/config.py - building and validating Config from environment variables."""
 import os
 import sys
 from pathlib import Path

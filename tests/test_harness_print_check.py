@@ -1,4 +1,4 @@
-"""Testy harness/agent/print_check.py – narzędzie check_print_file (PDF/obraz z maila)."""
+"""Tests for harness/agent/print_check.py - the check_print_file tool (PDF/image from an email)."""
 import io
 import sys
 from pathlib import Path
@@ -88,7 +88,7 @@ def test_executor_image_without_product_asks_for_one():
     executor = PC.make_check_print_file_executor([_attachment("zdjecie.jpg", _tiny_image_bytes("JPEG"))])
     result = executor(_call("zdjecie.jpg"))
     assert "product" in result
-    assert "ulotka_a5" in result  # podpowiedź dostępnych produktów
+    assert "ulotka_a5" in result  # hint of available products
 
 
 def test_executor_unknown_product_id_returns_error_text_not_raises():

@@ -1,4 +1,4 @@
-"""Testy harness/run_script.py – uruchamianie skryptów skilli (subprocess, argv, bez shella)."""
+"""Tests for harness/run_script.py - running skill scripts (subprocess, argv, no shell)."""
 import sys
 import textwrap
 from pathlib import Path

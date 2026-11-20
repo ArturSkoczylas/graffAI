@@ -13,7 +13,7 @@ def main() -> int:
     try:
         cfg = Config.from_env(os.environ)
     except ConfigError as exc:
-        print(f"Błąd konfiguracji: {exc}", file=sys.stderr)
+        print(f"Configuration error: {exc}", file=sys.stderr)
         return 1
     server.run(cfg)
     return 0

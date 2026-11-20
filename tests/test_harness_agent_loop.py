@@ -181,10 +181,10 @@ def test_run_agent_logs_step_summary_per_turn(caplog):
         provider, "sys", "user", tools=[], stop_tool="create_draft",
         executors={"check_print_file": lambda call: "ok"},
     )
-    assert "tura 1/" in caplog.text
+    assert "turn 1/" in caplog.text
     assert "check_print_file" in caplog.text
     assert "sprawdzam plik" in caplog.text
-    assert "tura 2/" in caplog.text
+    assert "turn 2/" in caplog.text
 
 
 def test_run_agent_logs_tool_execution_result_and_status(caplog):
@@ -201,7 +201,7 @@ def test_run_agent_logs_tool_execution_result_and_status(caplog):
     assert "OK" in caplog.text
 
 
-def test_run_agent_logs_tool_failure_as_blad(caplog):
+def test_run_agent_logs_tool_failure_as_error(caplog):
     caplog.set_level(logging.INFO, logger="harness.agent_loop")
     provider = FakeProvider([
         _reply([_call("check_print_file")]),
@@ -211,7 +211,7 @@ def test_run_agent_logs_tool_failure_as_blad(caplog):
         provider, "sys", "user", tools=[], stop_tool="create_draft",
         executors={"check_print_file": lambda call: (_ for _ in ()).throw(RuntimeError("zły plik"))},
     )
-    assert "BŁĄD" in caplog.text
+    assert "ERROR" in caplog.text
     assert "zły plik" in caplog.text
 
 

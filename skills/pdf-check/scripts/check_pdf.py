@@ -14,6 +14,7 @@ from pathlib import Path
 
 from pdf_boxes import InvalidPdfError, read_boxes
 from pdf_colors import REGISTRATION, color_spaces
+from pdf_images import page_images
 from pdf_margins import DEFAULT_RENDER_DPI, M, check_margins
 
 EXIT_CODES = {"OK": 0, "DO_WERYFIKACJI": 1, "OSTRZEŻENIA": 1, "BŁĘDY": 2}
@@ -39,6 +40,25 @@ def _color_findings(colors) -> list:
     return out
 
 
+def _image_findings(images, min_dpi: int) -> list:
+    """Werdykt DPI dla obrazów osadzonych na stronie, względem wymaganego minimum produktu."""
+    if not images.images:
+        return []
+    bad = [im for im in images.images if im.dpi < min_dpi * 0.98]
+    if not bad:
+        worst = min(images.images, key=lambda im: im.dpi)
+        return M.resolution_findings(worst.dpi, min_dpi)
+    out = []
+    seen = set()
+    for im in sorted(bad, key=lambda im: im.dpi):
+        key = (round(im.dpi), im.px_w, im.px_h)
+        if key in seen:
+            continue
+        seen.add(key)
+        out += M.resolution_findings(im.dpi, min_dpi, prefix=f"Obraz {im.px_w}×{im.px_h}px: ")
+    return out
+
+
 def _status(findings: list) -> str:
     return M.overall_status(findings)
 
@@ -48,6 +68,7 @@ def check_pdf(path, product=None, render_dpi: float = DEFAULT_RENDER_DPI, previe
     path = Path(path) if isinstance(path, str) else path
     geometry = read_boxes(path)
     colors = color_spaces(path)
+    images = page_images(path)
     margins = check_margins(path, product, render_dpi, preview_dir) if product is not None else None
     rules = M.load_rules()
 
@@ -69,6 +90,7 @@ def check_pdf(path, product=None, render_dpi: float = DEFAULT_RENDER_DPI, previe
 
     for i, g in enumerate(geometry):
         c = colors[i]
+        img = images[i]
         findings = _color_findings(c)
         page = {
             "page": g.page,
@@ -78,7 +100,12 @@ def check_pdf(path, product=None, render_dpi: float = DEFAULT_RENDER_DPI, previe
             "crop_marks": g.has_crop_marks,
             "colors": {"images": dict(c.images), "vector": sorted(c.vector - {REGISTRATION}),
                        "spots": sorted(c.spot_names)},
+            "images": [{"px": [im.px_w, im.px_h],
+                       "placed_mm": [round(im.placed_w_mm, 1), round(im.placed_h_mm, 1)],
+                       "dpi": round(im.dpi, 1)} for im in img.images],
         }
+        if product is not None:
+            findings += _image_findings(img, prod.min_dpi)
         if margins is not None:
             m = margins[i]
             findings += m.findings

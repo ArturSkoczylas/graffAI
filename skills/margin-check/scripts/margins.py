@@ -643,22 +643,30 @@ def _check_folds(edge, vline, hline, frame_mask, layout, product, trim_px, ppm_x
     return out
 
 
-def check_resolution(layout: Layout, product: Product) -> list:
-    dpi = layout.dpi
+def resolution_findings(dpi: float, min_dpi: int, prefix: str = "") -> list:
+    """Werdykt dla zmierzonego DPI względem wymaganego minimum.
+
+    `prefix` dopisuje się do komunikatu (np. nazwa/numer obrazu), gdy sprawdzamy
+    wiele obrazów na stronie, a nie jeden plik.
+    """
     out = []
-    if dpi >= product.min_dpi * 0.98:
+    if dpi >= min_dpi * 0.98:
         out.append(Finding("INFO", "DPI_OK",
-                           f"Rozdzielczość w docelowym rozmiarze: ok. {dpi:.0f} dpi "
-                           f"(wymagane {product.min_dpi})."))
-    elif dpi >= product.min_dpi * 0.8:
+                           f"{prefix}Rozdzielczość w docelowym rozmiarze: ok. {dpi:.0f} dpi "
+                           f"(wymagane {min_dpi})."))
+    elif dpi >= min_dpi * 0.8:
         out.append(Finding("OSTRZEŻENIE", "DPI_LOW",
-                           f"Rozdzielczość ok. {dpi:.0f} dpi – nieco poniżej wymaganych "
-                           f"{product.min_dpi} dpi. Druk może być lekko mniej ostry."))
+                           f"{prefix}Rozdzielczość ok. {dpi:.0f} dpi – nieco poniżej wymaganych "
+                           f"{min_dpi} dpi. Druk może być lekko mniej ostry."))
     else:
         out.append(Finding("BŁĄD", "DPI_TOO_LOW",
-                           f"Za niska rozdzielczość: ok. {dpi:.0f} dpi przy wymaganych "
-                           f"{product.min_dpi} dpi. Na wydruku będą widoczne piksele / rozmycie."))
+                           f"{prefix}Za niska rozdzielczość: ok. {dpi:.0f} dpi przy wymaganych "
+                           f"{min_dpi} dpi. Na wydruku będą widoczne piksele / rozmycie."))
     return out
+
+
+def check_resolution(layout: Layout, product: Product) -> list:
+    return resolution_findings(layout.dpi, product.min_dpi)
 
 
 def overall_status(findings: list) -> str:

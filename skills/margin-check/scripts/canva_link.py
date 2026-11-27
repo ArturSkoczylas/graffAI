@@ -9,17 +9,26 @@ login and is rendered in the browser. So this tool instead:
   3. returns a checklist for the client and steps for the operator: export
      "Print PDF" with bleed -> check the PDF (source 1) or image (source 2).
 
+Short links (canva.link/...) are expanded to the full design URL by following the
+redirect (one HTTP request to canva.link, the design page itself is not loaded).
+Without network access the link is reported as SHORT_LINK, to be opened by hand.
+
 Example:
   python canva_link.py "https://www.canva.com/design/DAGxxxx/abc123/edit" --product ulotka_a5
+  python canva_link.py "https://canva.link/abc123xyz" --product wizytowka_90x50
 """
 from __future__ import annotations
 
 import argparse
+import html
 import json
 import re
 import sys
+import urllib.error
+import urllib.request
 from pathlib import Path
-from urllib.parse import urlparse
+from typing import Callable, Optional
+from urllib.parse import urljoin, urlparse
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import margins as M  # noqa: E402
@@ -28,8 +37,63 @@ DESIGN_ID_RE = re.compile(r"^[A-Za-z0-9_-]{6,}$")
 MODES = {"edit", "view", "watch", "present"}
 SHORT_HOSTS = {"canva.link", "www.canva.link"}
 
+RESOLVE_TIMEOUT_S = 10
+MAX_REDIRECTS = 5
+MAX_BODY_BYTES = 200_000
+_DESIGN_URL_RE = re.compile(r"https://(?:www\.)?canva\.com/design/[A-Za-z0-9_-]+(?:/[^\s\"'<>]*)?")
 
-def parse_canva_link(url: str) -> dict:
+# fetch(url) -> (HTTP status, Location header or None, start of the response body)
+Fetch = Callable[[str], "tuple[int, Optional[str], str]"]
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """Stops at the first redirect so we read its Location instead of loading the design page."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+def _http_fetch(url: str) -> "tuple[int, Optional[str], str]":
+    opener = urllib.request.build_opener(_NoRedirect)
+    req = urllib.request.Request(url, headers={"User-Agent": "graffAI-canva-link/1.0"})
+    try:
+        with opener.open(req, timeout=RESOLVE_TIMEOUT_S) as r:
+            body = r.read(MAX_BODY_BYTES).decode("utf-8", errors="replace")
+            return r.status, r.headers.get("Location"), body
+    except urllib.error.HTTPError as e:      # 3xx lands here because redirects are not followed
+        return e.code, e.headers.get("Location"), ""
+
+
+def resolve_short_link(url: str, fetch: Optional[Fetch] = None) -> Optional[str]:
+    """Full URL behind a canva.link short link, or None if it can't be resolved.
+
+    Follows HTTP redirects one by one (at most MAX_REDIRECTS) until it leaves canva.link.
+    If canva.link answers 200 with an HTML page instead of a redirect, takes the first
+    canva.com/design/... URL found in it. Network errors and timeouts give None.
+    """
+    fetch = fetch or _http_fetch
+    current = url
+    for _ in range(MAX_REDIRECTS):
+        try:
+            status, location, body = fetch(current)
+        except (OSError, ValueError):            # URLError, timeout, bad URL
+            return None
+        if location:
+            target = urljoin(current, location)
+            if (urlparse(target).hostname or "").lower() in SHORT_HOSTS:
+                current = target
+                continue
+            return target
+        if status == 200:
+            m = _DESIGN_URL_RE.search(html.unescape(body))
+            return m.group(0) if m else None
+        return None
+    return None
+
+
+def parse_canva_link(url: str, resolve: bool = False, fetch: Optional[Fetch] = None) -> dict:
+    """Checks a Canva link. resolve=True expands canva.link short links over the network
+    (the CLI does this by default); without it a short link is only reported."""
     url = url.strip().strip("<>\"'")
     if not re.match(r"^https?://", url):
         url = "https://" + url
@@ -38,11 +102,21 @@ def parse_canva_link(url: str) -> dict:
     res = {"url": url, "valid": False, "design_id": None, "link_type": None, "findings": []}
 
     if host in SHORT_HOSTS:
+        target = resolve_short_link(url, fetch) if resolve else None
+        if target:
+            full = parse_canva_link(target)
+            full["short_url"] = url
+            full["findings"].insert(0, M.Finding(
+                "INFO", "SHORT_LINK_RESOLVED",
+                f"Skrócony link canva.link prowadzi do: {full['url']}"))
+            return full
         res["link_type"] = "short"
         res["findings"].append(M.Finding(
             "SPRAWDŹ", "SHORT_LINK",
-            "To skrócony link Canva (canva.link). Otwórz go w przeglądarce, żeby zobaczyć pełny "
-            "adres projektu (canva.com/design/…), albo poproś klienta o link do współpracy."))
+            ("Nie udało się automatycznie rozwinąć skróconego linku Canva (canva.link) – brak "
+             "połączenia albo link wygasł. " if resolve else "To skrócony link Canva (canva.link). ")
+            + "Otwórz go w przeglądarce, żeby zobaczyć pełny adres projektu (canva.com/design/…), "
+              "albo poproś klienta o link do współpracy."))
         return res
     if not (host == "canva.com" or host.endswith(".canva.com")):
         res["findings"].append(M.Finding("BŁĄD", "NOT_CANVA", "To nie jest link do Canvy."))
@@ -150,11 +224,13 @@ def main(argv=None) -> int:
     ap.add_argument("--product", help="ID produktu z rules.yaml (np. ulotka_a5)")
     ap.add_argument("--rules", type=Path)
     ap.add_argument("--json", action="store_true")
+    ap.add_argument("--no-resolve", action="store_true",
+                    help="nie rozwijaj skróconych linków canva.link (bez połączenia z siecią)")
     a = ap.parse_args(argv)
 
     rules = M.load_rules(a.rules)
     product = M.get_product(rules, a.product) if a.product else None
-    res = parse_canva_link(a.url)
+    res = parse_canva_link(a.url, resolve=not a.no_resolve)
     findings = M.sort_findings(res.pop("findings"))
     out = {**res, "status": M.overall_status(findings),
            "findings": [f.to_dict() for f in findings],
@@ -163,6 +239,8 @@ def main(argv=None) -> int:
     if a.json:
         print(json.dumps(out, ensure_ascii=False, indent=2))
     else:
+        if out.get("short_url"):
+            print(f"Skrócony link: {out['short_url']}")
         print(f"Link: {out['url']}\nWYNIK: {out['status']}")
         if out["design_id"]:
             print(f"ID projektu: {out['design_id']} (typ linku: {out['link_type']})")

@@ -1,3 +1,4 @@
+import json
 import sys
 from pathlib import Path
 
@@ -94,3 +95,76 @@ def test_canva_checklist_folded_product():
     items = canva_link.client_checklist(M.get_product(RULES, "ulotka_a4_skladana_dl"), RULES)
     assert any("rozkładówka" in s for s in items)
     assert any("297×210" in s for s in items)
+
+
+# --------------------------------------------------------------------------- canva.link (bez sieci)
+FULL = "https://www.canva.com/design/DAGk2Lm9XyZ/Ab3dEfGh/edit"
+
+
+def fake_fetch(responses):
+    """Zwraca fetch(url) z ustalonymi odpowiedziami {url: (status, Location, treść)}."""
+    calls = []
+
+    def fetch(url):
+        calls.append(url)
+        if url not in responses:
+            raise OSError("brak sieci")
+        return responses[url]
+    fetch.calls = calls
+    return fetch
+
+
+def test_short_link_resolved_by_redirect():
+    f = fake_fetch({"https://canva.link/abc": (301, FULL, "")})
+    res = canva_link.parse_canva_link("https://canva.link/abc", resolve=True, fetch=f)
+    assert res["valid"] and res["link_type"] == "edit" and res["design_id"] == "DAGk2Lm9XyZ"
+    assert res["short_url"] == "https://canva.link/abc" and res["url"] == FULL
+    assert res["findings"][0].code == "SHORT_LINK_RESOLVED"
+    assert M.overall_status(res["findings"]) == "OK"
+
+
+def test_short_link_view_only_after_resolving():
+    view = FULL.replace("/edit", "/view")
+    f = fake_fetch({"https://canva.link/abc": (302, view, "")})
+    res = canva_link.parse_canva_link("canva.link/abc", resolve=True, fetch=f)
+    assert res["link_type"] == "view" and M.overall_status(res["findings"]) == "OSTRZEŻENIA"
+
+
+def test_short_link_chain_and_relative_location():
+    f = fake_fetch({"https://canva.link/abc": (301, "/x/def", ""),
+                    "https://canva.link/x/def": (302, FULL, "")})
+    res = canva_link.parse_canva_link("https://canva.link/abc", resolve=True, fetch=f)
+    assert res["url"] == FULL and f.calls == ["https://canva.link/abc", "https://canva.link/x/def"]
+
+
+def test_short_link_html_page_with_design_url():
+    page = f'<html><head><link rel="canonical" href="{FULL.replace("/edit", "/edit?utm=a&amp;b=1")}"></head></html>'
+    f = fake_fetch({"https://canva.link/abc": (200, None, page)})
+    res = canva_link.parse_canva_link("https://canva.link/abc", resolve=True, fetch=f)
+    assert res["valid"] and res["design_id"] == "DAGk2Lm9XyZ"
+
+
+@pytest.mark.parametrize("responses", [
+    {},                                                  # brak sieci
+    {"https://canva.link/abc": (404, None, "")},         # link wygasł
+    {"https://canva.link/abc": (200, None, "<html>nic</html>")},
+    {"https://canva.link/abc": (301, "https://canva.link/abc", "")},   # pętla
+])
+def test_short_link_not_resolved(responses):
+    res = canva_link.parse_canva_link("https://canva.link/abc", resolve=True, fetch=fake_fetch(responses))
+    assert res["link_type"] == "short" and res["findings"][0].code == "SHORT_LINK"
+    assert "Nie udało się automatycznie rozwinąć" in res["findings"][0].message
+    assert M.overall_status(res["findings"]) == "DO_WERYFIKACJI"
+
+
+def test_short_link_leading_outside_canva():
+    f = fake_fetch({"https://canva.link/abc": (301, "https://example.com/phish", "")})
+    res = canva_link.parse_canva_link("https://canva.link/abc", resolve=True, fetch=f)
+    assert not res["valid"] and res["findings"][-1].code == "NOT_CANVA"
+
+
+def test_cli_no_resolve_makes_no_request(monkeypatch, capsys):
+    monkeypatch.setattr(canva_link, "_http_fetch", lambda url: (_ for _ in ()).throw(AssertionError("sieć")))
+    code = canva_link.main(["https://canva.link/abc", "--no-resolve", "--json"])
+    out = json.loads(capsys.readouterr().out)
+    assert code == 1 and out["link_type"] == "short"

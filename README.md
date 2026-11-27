@@ -9,7 +9,7 @@ klientów są poprawnie przygotowane do druku.
 |---|---|---|---|
 | 1 | PDF | `skills/pdf-check/scripts/check_pdf.py` | ✅ |
 | 2 | Pliki graficzne: JPG, PNG, TIFF | `skills/margin-check/scripts/check_image.py` | ✅ v0.1 |
-| 3 | Linki do Canvy | `skills/margin-check/scripts/canva_link.py` | ✅ v0.1 (weryfikacja linku + lista kontrolna) |
+| 3 | Linki do Canvy | `skills/margin-check/scripts/canva_link.py` | ✅ v0.1 (weryfikacja linku, rozwijanie canva.link + lista kontrolna) |
 
 ## Skille
 

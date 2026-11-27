@@ -69,7 +69,9 @@ python scripts/canva_link.py "<link>" --product <id>
 ```
 
 Skrypt sprawdzi typ linku (drukarnia potrzebuje **linku do współpracy z edycją**)
-i zwróci listę kontrolną dla klienta. Jeśli klient może przesłać plik, poproś o eksport
+i zwróci listę kontrolną dla klienta. Skrócony link `canva.link/…` sam rozwija do pełnego
+adresu projektu (jedno zapytanie do canva.link, potrzebny internet). Gdy się nie uda, zgłasza
+`SHORT_LINK` – wtedy otwórz link w przeglądarce. Jeśli klient może przesłać plik, poproś o eksport
 „PDF do druku” (CMYK, „Znaczniki przycięcia i spady”) – wtedy sprawdź go jak PDF
 lub poproś o JPG w pełnej rozdzielczości i przejdź do kroku 2a.
 
